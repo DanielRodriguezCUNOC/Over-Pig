@@ -15,7 +15,7 @@ import java.util.Set;
  *  - Answer queries used by the SemanticAnalyzer and TypeChecker.
  */
 @Getter
-public class TypeTable {
+public class ZetarianoTypeTable {
 
     /** Built-in primitive types. */
     private final Set<String> primitiveTypes;
@@ -23,7 +23,7 @@ public class TypeTable {
     /** Class types declared by the user in the source file. */
     private final Set<String> userDefinedTypes;
 
-    public TypeTable() {
+    public ZetarianoTypeTable() {
         this.primitiveTypes = new HashSet<>();
         this.userDefinedTypes = new HashSet<>();
         preloadPrimitives();

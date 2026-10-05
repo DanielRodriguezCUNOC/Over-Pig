@@ -11,44 +11,38 @@ import org.antlr.v4.runtime.tree.ParseTreeVisitor;
  */
 public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#program}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#compilationUnit}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitProgram(ZetarianoParser.ProgramContext ctx);
+	T visitCompilationUnit(ZetarianoParser.CompilationUnitContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#classDefinition}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#classDeclaration}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitClassDefinition(ZetarianoParser.ClassDefinitionContext ctx);
+	T visitClassDeclaration(ZetarianoParser.ClassDeclarationContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#globalDeclarations}.
+	 * Visit a parse tree produced by the {@code FieldDeclarationClassBodyMember}
+	 * labeled alternative in {@link ZetarianoParser#classBodyMember}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitGlobalDeclarations(ZetarianoParser.GlobalDeclarationsContext ctx);
+	T visitFieldDeclarationClassBodyMember(ZetarianoParser.FieldDeclarationClassBodyMemberContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code GlobalField}
-	 * labeled alternative in {@link ZetarianoParser#globalDeclaration}.
+	 * Visit a parse tree produced by the {@code ConstructorDeclarationClassBodyMember}
+	 * labeled alternative in {@link ZetarianoParser#classBodyMember}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitGlobalField(ZetarianoParser.GlobalFieldContext ctx);
+	T visitConstructorDeclarationClassBodyMember(ZetarianoParser.ConstructorDeclarationClassBodyMemberContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code GlobalMethod}
-	 * labeled alternative in {@link ZetarianoParser#globalDeclaration}.
+	 * Visit a parse tree produced by the {@code MethodDeclarationClassBodyMember}
+	 * labeled alternative in {@link ZetarianoParser#classBodyMember}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitGlobalMethod(ZetarianoParser.GlobalMethodContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code GlobalConstructor}
-	 * labeled alternative in {@link ZetarianoParser#globalDeclaration}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitGlobalConstructor(ZetarianoParser.GlobalConstructorContext ctx);
+	T visitMethodDeclarationClassBodyMember(ZetarianoParser.MethodDeclarationClassBodyMemberContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#fieldDeclaration}.
 	 * @param ctx the parse tree
@@ -56,17 +50,17 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFieldDeclaration(ZetarianoParser.FieldDeclarationContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#methodDeclaration}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitMethodDeclaration(ZetarianoParser.MethodDeclarationContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#constructorDeclaration}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitConstructorDeclaration(ZetarianoParser.ConstructorDeclarationContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#methodDeclaration}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodDeclaration(ZetarianoParser.MethodDeclarationContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#parameterList}.
 	 * @param ctx the parse tree
@@ -80,149 +74,192 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitParameter(ZetarianoParser.ParameterContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#typeOrVoid}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeOrVoid(ZetarianoParser.TypeOrVoidContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#type}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitType(ZetarianoParser.TypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#primitiveType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPrimitiveType(ZetarianoParser.PrimitiveTypeContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#block}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitBlock(ZetarianoParser.BlockContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#mainInstructions}.
+	 * Visit a parse tree produced by the {@code StatementBlock}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitMainInstructions(ZetarianoParser.MainInstructionsContext ctx);
+	T visitStatementBlock(ZetarianoParser.StatementBlockContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionAssignment}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code LocalVariableDeclarationStatement}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionAssignment(ZetarianoParser.InstructionAssignmentContext ctx);
+	T visitLocalVariableDeclarationStatement(ZetarianoParser.LocalVariableDeclarationStatementContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionRead}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementAssignment}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionRead(ZetarianoParser.InstructionReadContext ctx);
+	T visitStatementAssignment(ZetarianoParser.StatementAssignmentContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionPrint}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementExpression}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionPrint(ZetarianoParser.InstructionPrintContext ctx);
+	T visitStatementExpression(ZetarianoParser.StatementExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionIf}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementIf}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionIf(ZetarianoParser.InstructionIfContext ctx);
+	T visitStatementIf(ZetarianoParser.StatementIfContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionSwitch}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementWhile}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionSwitch(ZetarianoParser.InstructionSwitchContext ctx);
+	T visitStatementWhile(ZetarianoParser.StatementWhileContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionWhile}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementDoWhile}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionWhile(ZetarianoParser.InstructionWhileContext ctx);
+	T visitStatementDoWhile(ZetarianoParser.StatementDoWhileContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionDoWhile}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementFor}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionDoWhile(ZetarianoParser.InstructionDoWhileContext ctx);
+	T visitStatementFor(ZetarianoParser.StatementForContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionFor}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementSwitch}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionFor(ZetarianoParser.InstructionForContext ctx);
+	T visitStatementSwitch(ZetarianoParser.StatementSwitchContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionJump}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementReturn}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionJump(ZetarianoParser.InstructionJumpContext ctx);
+	T visitStatementReturn(ZetarianoParser.StatementReturnContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionDeclaration}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementBreak}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionDeclaration(ZetarianoParser.InstructionDeclarationContext ctx);
+	T visitStatementBreak(ZetarianoParser.StatementBreakContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionArrayDeclaration}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementContinue}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionArrayDeclaration(ZetarianoParser.InstructionArrayDeclarationContext ctx);
+	T visitStatementContinue(ZetarianoParser.StatementContinueContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionExpression}
-	 * labeled alternative in {@link ZetarianoParser#instruction}.
+	 * Visit a parse tree produced by the {@code StatementEmpty}
+	 * labeled alternative in {@link ZetarianoParser#statement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitInstructionExpression(ZetarianoParser.InstructionExpressionContext ctx);
+	T visitStatementEmpty(ZetarianoParser.StatementEmptyContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#variableDeclaration}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#localVariableDeclaration}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitVariableDeclaration(ZetarianoParser.VariableDeclarationContext ctx);
+	T visitLocalVariableDeclaration(ZetarianoParser.LocalVariableDeclarationContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#arrayDeclaration}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#assignmentStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitArrayDeclaration(ZetarianoParser.ArrayDeclarationContext ctx);
+	T visitAssignmentStatement(ZetarianoParser.AssignmentStatementContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#arrayInitializer}.
+	 * Visit a parse tree produced by the {@code AssignmentOperatorAssign}
+	 * labeled alternative in {@link ZetarianoParser#assignmentOperator}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitArrayInitializer(ZetarianoParser.ArrayInitializerContext ctx);
+	T visitAssignmentOperatorAssign(ZetarianoParser.AssignmentOperatorAssignContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#assignment}.
+	 * Visit a parse tree produced by the {@code AssignmentOperatorAddAssign}
+	 * labeled alternative in {@link ZetarianoParser#assignmentOperator}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitAssignment(ZetarianoParser.AssignmentContext ctx);
+	T visitAssignmentOperatorAddAssign(ZetarianoParser.AssignmentOperatorAddAssignContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#readStatement}.
+	 * Visit a parse tree produced by the {@code AssignmentOperatorSubAssign}
+	 * labeled alternative in {@link ZetarianoParser#assignmentOperator}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitReadStatement(ZetarianoParser.ReadStatementContext ctx);
+	T visitAssignmentOperatorSubAssign(ZetarianoParser.AssignmentOperatorSubAssignContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#printStatement}.
+	 * Visit a parse tree produced by the {@code AssignmentOperatorMulAssign}
+	 * labeled alternative in {@link ZetarianoParser#assignmentOperator}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitPrintStatement(ZetarianoParser.PrintStatementContext ctx);
+	T visitAssignmentOperatorMulAssign(ZetarianoParser.AssignmentOperatorMulAssignContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code AssignmentOperatorDivAssign}
+	 * labeled alternative in {@link ZetarianoParser#assignmentOperator}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAssignmentOperatorDivAssign(ZetarianoParser.AssignmentOperatorDivAssignContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code AssignmentOperatorModAssign}
+	 * labeled alternative in {@link ZetarianoParser#assignmentOperator}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAssignmentOperatorModAssign(ZetarianoParser.AssignmentOperatorModAssignContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#target}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTarget(ZetarianoParser.TargetContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#expressionStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpressionStatement(ZetarianoParser.ExpressionStatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#ifStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitIfStatement(ZetarianoParser.IfStatementContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#switchStatement}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitSwitchStatement(ZetarianoParser.SwitchStatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#whileStatement}.
 	 * @param ctx the parse tree
@@ -242,146 +279,261 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitForStatement(ZetarianoParser.ForStatementContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code JumpBreak}
-	 * labeled alternative in {@link ZetarianoParser#jumpStatement}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#forInit}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitJumpBreak(ZetarianoParser.JumpBreakContext ctx);
+	T visitForInit(ZetarianoParser.ForInitContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code JumpContinue}
-	 * labeled alternative in {@link ZetarianoParser#jumpStatement}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#forUpdate}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitJumpContinue(ZetarianoParser.JumpContinueContext ctx);
+	T visitForUpdate(ZetarianoParser.ForUpdateContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code JumpReturn}
-	 * labeled alternative in {@link ZetarianoParser#jumpStatement}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#switchStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitJumpReturn(ZetarianoParser.JumpReturnContext ctx);
+	T visitSwitchStatement(ZetarianoParser.SwitchStatementContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#lvalue}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#switchBlockStatementGroup}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitLvalue(ZetarianoParser.LvalueContext ctx);
+	T visitSwitchBlockStatementGroup(ZetarianoParser.SwitchBlockStatementGroupContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#type}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#switchLabel}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitType(ZetarianoParser.TypeContext ctx);
+	T visitSwitchLabel(ZetarianoParser.SwitchLabelContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprPrimary}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#returnStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprPrimary(ZetarianoParser.ExprPrimaryContext ctx);
+	T visitReturnStatement(ZetarianoParser.ReturnStatementContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprAnd}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#breakStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprAnd(ZetarianoParser.ExprAndContext ctx);
+	T visitBreakStatement(ZetarianoParser.BreakStatementContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprTernary}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#continueStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprTernary(ZetarianoParser.ExprTernaryContext ctx);
+	T visitContinueStatement(ZetarianoParser.ContinueStatementContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprParen}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprParen(ZetarianoParser.ExprParenContext ctx);
+	T visitExpression(ZetarianoParser.ExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprOr}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#ternaryExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprOr(ZetarianoParser.ExprOrContext ctx);
+	T visitTernaryExpression(ZetarianoParser.TernaryExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprMultiplicative}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#logicalOrExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprMultiplicative(ZetarianoParser.ExprMultiplicativeContext ctx);
+	T visitLogicalOrExpression(ZetarianoParser.LogicalOrExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprUnary}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#logicalAndExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprUnary(ZetarianoParser.ExprUnaryContext ctx);
+	T visitLogicalAndExpression(ZetarianoParser.LogicalAndExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprRelational}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#equalityExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprRelational(ZetarianoParser.ExprRelationalContext ctx);
+	T visitEqualityExpression(ZetarianoParser.EqualityExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprEquality}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#relationalExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprEquality(ZetarianoParser.ExprEqualityContext ctx);
+	T visitRelationalExpression(ZetarianoParser.RelationalExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprAdditive}
-	 * labeled alternative in {@link ZetarianoParser#expression}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#additiveExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprAdditive(ZetarianoParser.ExprAdditiveContext ctx);
+	T visitAdditiveExpression(ZetarianoParser.AdditiveExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code PrimaryLiteral}
-	 * labeled alternative in {@link ZetarianoParser#primary}.
+	 * Visit a parse tree produced by {@link ZetarianoParser#multiplicativeExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitPrimaryLiteral(ZetarianoParser.PrimaryLiteralContext ctx);
+	T visitMultiplicativeExpression(ZetarianoParser.MultiplicativeExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code PrimaryNewObject}
-	 * labeled alternative in {@link ZetarianoParser#primary}.
+	 * Visit a parse tree produced by the {@code UnaryPlus}
+	 * labeled alternative in {@link ZetarianoParser#unaryExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitPrimaryNewObject(ZetarianoParser.PrimaryNewObjectContext ctx);
+	T visitUnaryPlus(ZetarianoParser.UnaryPlusContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code PrimaryNewArray}
-	 * labeled alternative in {@link ZetarianoParser#primary}.
+	 * Visit a parse tree produced by the {@code UnaryMinus}
+	 * labeled alternative in {@link ZetarianoParser#unaryExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitPrimaryNewArray(ZetarianoParser.PrimaryNewArrayContext ctx);
+	T visitUnaryMinus(ZetarianoParser.UnaryMinusContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code PrimaryLvalueOrCall}
-	 * labeled alternative in {@link ZetarianoParser#primary}.
+	 * Visit a parse tree produced by the {@code UnaryNot}
+	 * labeled alternative in {@link ZetarianoParser#unaryExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitPrimaryLvalueOrCall(ZetarianoParser.PrimaryLvalueOrCallContext ctx);
+	T visitUnaryNot(ZetarianoParser.UnaryNotContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code UnaryPreIncrement}
+	 * labeled alternative in {@link ZetarianoParser#unaryExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitUnaryPreIncrement(ZetarianoParser.UnaryPreIncrementContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code UnaryPreDecrement}
+	 * labeled alternative in {@link ZetarianoParser#unaryExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitUnaryPreDecrement(ZetarianoParser.UnaryPreDecrementContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code UnaryPostfix}
+	 * labeled alternative in {@link ZetarianoParser#unaryExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitUnaryPostfix(ZetarianoParser.UnaryPostfixContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#postfixExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPostfixExpression(ZetarianoParser.PostfixExpressionContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#primary}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPrimary(ZetarianoParser.PrimaryContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ParenthesizedExpression}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitParenthesizedExpression(ZetarianoParser.ParenthesizedExpressionContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code LiteralPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLiteralPrimary(ZetarianoParser.LiteralPrimaryContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code AllocationExpressionPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAllocationExpressionPrimary(ZetarianoParser.AllocationExpressionPrimaryContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code DirectMethodCall}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDirectMethodCall(ZetarianoParser.DirectMethodCallContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code VariableOrField}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitVariableOrField(ZetarianoParser.VariableOrFieldContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code MethodCallSuffix}
+	 * labeled alternative in {@link ZetarianoParser#primarySuffix}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodCallSuffix(ZetarianoParser.MethodCallSuffixContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code FieldAccessSuffix}
+	 * labeled alternative in {@link ZetarianoParser#primarySuffix}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFieldAccessSuffix(ZetarianoParser.FieldAccessSuffixContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ArrayAccessSuffix}
+	 * labeled alternative in {@link ZetarianoParser#primarySuffix}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArrayAccessSuffix(ZetarianoParser.ArrayAccessSuffixContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code AllocationExpressionArray}
+	 * labeled alternative in {@link ZetarianoParser#allocationExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAllocationExpressionArray(ZetarianoParser.AllocationExpressionArrayContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code AllocationExpressionObject}
+	 * labeled alternative in {@link ZetarianoParser#allocationExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAllocationExpressionObject(ZetarianoParser.AllocationExpressionObjectContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#arrayDimensions}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArrayDimensions(ZetarianoParser.ArrayDimensionsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#methodCall}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodCall(ZetarianoParser.MethodCallContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ArrayAccessing}
+	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArrayAccessing(ZetarianoParser.ArrayAccessingContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code FieldAccessing}
+	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFieldAccessing(ZetarianoParser.FieldAccessingContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#expressionList}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpressionList(ZetarianoParser.ExpressionListContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#literal}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitLiteral(ZetarianoParser.LiteralContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#argumentList}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitArgumentList(ZetarianoParser.ArgumentListContext ctx);
 }

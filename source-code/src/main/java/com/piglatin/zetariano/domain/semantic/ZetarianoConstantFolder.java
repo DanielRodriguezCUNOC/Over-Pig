@@ -1,18 +1,18 @@
-package com.piglatin.y.domain.semantic;
+package com.piglatin.zetariano.domain.semantic;
 
-import com.piglatin.y.domain.ast.expressions.*;
-import com.piglatin.y.domain.ast.principal.ASTNode;
-import com.piglatin.y.domain.ast.principal.NodeProgram;
-import com.piglatin.y.domain.ast.statements.*;
-import com.piglatin.y.domain.ast.visitor.Visitor;
+import com.piglatin.zetariano.domain.ast.expressions.*;
+import com.piglatin.zetariano.domain.ast.expressions.literals.*;
+import com.piglatin.zetariano.domain.ast.principal.*;
+import com.piglatin.zetariano.domain.ast.statements.*;
+import com.piglatin.zetariano.domain.ast.visitor.Visitor;
 
 import java.util.Objects;
 
-public class ConstantFolder implements Visitor<Object> {
+public class ZetarianoConstantFolder implements Visitor<Object> {
 
     private final SemanticErrorReporter errorReporter;
 
-    public ConstantFolder(SemanticErrorReporter errorReporter) {
+    public ZetarianoConstantFolder(SemanticErrorReporter errorReporter) {
         this.errorReporter = errorReporter;
     }
 
@@ -34,7 +34,7 @@ public class ConstantFolder implements Visitor<Object> {
     }
 
     @Override
-    public Object visitFloatLiteral(NodeFloatLiteral n) {
+    public Object visitDecimalLiteral(NodeDecimalLiteral n) {
         return n.getValue();
     }
 
@@ -53,25 +53,32 @@ public class ConstantFolder implements Visitor<Object> {
         return n.isValue();
     }
 
+    @Override
+    public Object visitNullLiteral(NodeNullLiteral n) {
+        return null; // Literal null is null
+    }
+
     // ============================================================
     // EXPRESSIONS
     // ============================================================
 
     @Override
-    public Object visitUnaryOperation(NodeUnaryOperation n) {
-        Object val = evaluate(n.getOperand());
+    public Object visitUnaryExpression(NodeUnaryExpression n) {
+        Object val = evaluate(n.getExpression());
         if (val == null) return null;
 
         String op = n.getOperator();
         try {
             return switch (op) {
+                case "+" -> isNumeric(val) ? val : null;
                 case "-" -> {
                     if (val instanceof Integer i) yield -i;
                     if (val instanceof Double d) yield -d;
+                    if (val instanceof Character c) yield -(int) c;
                     yield null;
                 }
                 case "!" -> val instanceof Boolean b ? !b : null;
-                default -> null; // Y has no other unary operators.
+                default -> null; // ++, -- are not foldable
             };
         } catch (Exception e) {
             return null;
@@ -79,7 +86,7 @@ public class ConstantFolder implements Visitor<Object> {
     }
 
     @Override
-    public Object visitBinaryOperation(NodeBinaryOperation n) {
+    public Object visitBinaryExpression(NodeBinaryExpression n) {
         String op = n.getOperator();
 
         // Logical short-circuit
@@ -105,32 +112,42 @@ public class ConstantFolder implements Visitor<Object> {
         try {
             return switch (op) {
                 case "+" -> {
-                    if (left instanceof String ls && right instanceof String rs) {
-                        yield ls + rs;
+                    if (left instanceof String || right instanceof String) {
+                        yield String.valueOf(left) + String.valueOf(right);
                     }
                     if (isNumeric(left) && isNumeric(right)) {
-                        yield isDoubleResult(left, right) ? toDouble(left) + toDouble(right) : toInt(left) + toInt(right);
+                        if (left instanceof Double || right instanceof Double) {
+                            yield toDouble(left) + toDouble(right);
+                        }
+                        yield toInt(left) + toInt(right);
                     }
                     yield null;
                 }
-                case "-" -> isNumeric(left) && isNumeric(right)
-                        ? (isDoubleResult(left, right) ? toDouble(left) - toDouble(right) : toInt(left) - toInt(right))
-                        : null;
-                case "*" -> isNumeric(left) && isNumeric(right)
-                        ? (isDoubleResult(left, right) ? toDouble(left) * toDouble(right) : toInt(left) * toInt(right))
-                        : null;
+                case "-" -> isNumeric(left) && isNumeric(right) ? (isDoubleResult(left, right) ? toDouble(left) - toDouble(right) : toInt(left) - toInt(right)) : null;
+                case "*" -> isNumeric(left) && isNumeric(right) ? (isDoubleResult(left, right) ? toDouble(left) * toDouble(right) : toInt(left) * toInt(right)) : null;
                 case "/" -> {
                     if (!isNumeric(left) || !isNumeric(right)) yield null;
                     double d2 = toDouble(right);
                     if (d2 == 0) {
-                        errorReporter.reportError(
-                                "Division by zero in constant expression.", n.getLine(), n.getColumn());
+                        errorReporter.reportError("Division by zero in constant expression", n);
                         yield null;
                     }
-                    yield isDoubleResult(left, right) ? toDouble(left) / d2 : toInt(left) / toInt(right);
+                    if (isDoubleResult(left, right)) yield toDouble(left) / d2;
+                    yield toInt(left) / toInt(right);
+                }
+                case "%" -> {
+                    if (!isIntegral(left) || !isIntegral(right)) yield null;
+                    int i2 = toInt(right);
+                    if (i2 == 0) {
+                        errorReporter.reportError("Division by zero in constant expression", n);
+                        yield null;
+                    }
+                    yield toInt(left) % i2;
                 }
                 case "<" -> isNumeric(left) && isNumeric(right) ? toDouble(left) < toDouble(right) : null;
                 case ">" -> isNumeric(left) && isNumeric(right) ? toDouble(left) > toDouble(right) : null;
+                case "<=" -> isNumeric(left) && isNumeric(right) ? toDouble(left) <= toDouble(right) : null;
+                case ">=" -> isNumeric(left) && isNumeric(right) ? toDouble(left) >= toDouble(right) : null;
                 case "==" -> Objects.equals(left, right);
                 case "!=" -> !Objects.equals(left, right);
                 default -> null;
@@ -140,35 +157,47 @@ public class ConstantFolder implements Visitor<Object> {
         }
     }
 
-    // ============================================================
-    // NON-EVALUABLE EXPRESSIONS (return null)
-    // ============================================================
-
-    @Override public Object visitIdentifier(NodeIdentifier n)       { return null; }
-    @Override public Object visitArrayLiteral(NodeArrayLiteral n)   { return null; }
-    @Override public Object visitLvalue(NodeLvalue n)               { return null; }
-    @Override public Object visitFieldAccess(NodeFieldAccess n)     { return null; }
-    @Override public Object visitIndexAccess(NodeIndexAccess n)     { return null; }
-    @Override public Object visitFunctionCall(NodeFunctionCall n)   { return null; }
-    @Override public Object visitAssignment(NodeAssignment n)       { return null; }
-    @Override public Object visitRead(NodeRead n)                   { return null; }
+    @Override
+    public Object visitTernaryExpression(NodeTernaryExpression n) {
+        Object cond = evaluate(n.getCondition());
+        if (cond instanceof Boolean b) {
+            return b ? evaluate(n.getTrueExpression()) : evaluate(n.getFalseExpression());
+        }
+        return null;
+    }
 
     // ============================================================
-    // STATEMENTS & DECLARATIONS (return null)
+    // NON-EVALUABLE EXPRESSIONS (Return null)
+    // ============================================================
+
+    @Override public Object visitIdentifier(NodeIdentifier n) { return null; }
+    @Override public Object visitFieldAccess(NodeFieldAccess n) { return null; }
+    @Override public Object visitIndexAccess(NodeIndexAccess n) { return null; }
+    @Override public Object visitMethodCall(NodeMethodCall n) { return null; }
+    @Override public Object visitNewObject(NodeNewObject n) { return null; }
+    @Override public Object visitNewArray(NodeNewArray n) { return null; }
+    @Override public Object visitArrayInitializer(NodeArrayInitializer n) { return null; }
+    @Override public Object visitAssignment(NodeAssignment n) { return null; }
+
+    // ============================================================
+    // STATEMENTS & DECLARATIONS (Return null)
     // ============================================================
 
     @Override public Object visitProgram(NodeProgram n) { return null; }
-    @Override public Object visitStructureDefinition(NodeStructureDefinition n) { return null; }
+    @Override public Object visitImport(NodeImport n) { return null; }
+    @Override public Object visitClassDeclaration(NodeClassDeclaration n) { return null; }
     @Override public Object visitFieldDeclaration(NodeFieldDeclaration n) { return null; }
-    @Override public Object visitFunctionDefinition(NodeFunctionDefinition n) { return null; }
+    @Override public Object visitMethodDeclaration(NodeMethodDeclaration n) { return null; }
+    @Override public Object visitConstructorDeclaration(NodeConstructorDeclaration n) { return null; }
     @Override public Object visitParameter(NodeParameter n) { return null; }
     @Override public Object visitBlock(NodeBlock n) { return null; }
     @Override public Object visitVariableDeclaration(NodeVariableDeclaration n) { return null; }
     @Override public Object visitArrayDeclaration(NodeArrayDeclaration n) { return null; }
+    @Override public Object visitRead(NodeRead n) { return null; }
     @Override public Object visitPrint(NodePrint n) { return null; }
     @Override public Object visitIf(NodeIf n) { return null; }
-    @Override public Object visitChoose(NodeChoose n) { return null; }
-    @Override public Object visitChooseCase(NodeChooseCase n) { return null; }
+    @Override public Object visitSwitch(NodeSwitch n) { return null; }
+    @Override public Object visitCase(NodeCase n) { return null; }
     @Override public Object visitWhile(NodeWhile n) { return null; }
     @Override public Object visitDoWhile(NodeDoWhile n) { return null; }
     @Override public Object visitFor(NodeFor n) { return null; }
@@ -181,7 +210,11 @@ public class ConstantFolder implements Visitor<Object> {
     // ============================================================
 
     private boolean isNumeric(Object o) {
-        return o instanceof Integer || o instanceof Double;
+        return o instanceof Integer || o instanceof Double || o instanceof Character;
+    }
+
+    private boolean isIntegral(Object o) {
+        return o instanceof Integer || o instanceof Character;
     }
 
     private boolean isDoubleResult(Object o1, Object o2) {
@@ -191,12 +224,14 @@ public class ConstantFolder implements Visitor<Object> {
     private double toDouble(Object o) {
         if (o instanceof Integer i) return i.doubleValue();
         if (o instanceof Double d) return d;
+        if (o instanceof Character c) return (double) c;
         return 0.0;
     }
 
     private int toInt(Object o) {
         if (o instanceof Integer i) return i;
         if (o instanceof Double d) return d.intValue();
+        if (o instanceof Character c) return c;
         return 0;
     }
 }

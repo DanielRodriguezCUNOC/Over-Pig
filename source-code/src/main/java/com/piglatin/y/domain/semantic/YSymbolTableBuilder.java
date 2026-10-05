@@ -6,7 +6,7 @@ import com.piglatin.y.domain.ast.principal.NodeProgram;
 import com.piglatin.y.domain.ast.statements.*;
 import com.piglatin.y.domain.ast.visitor.Visitor;
 import com.piglatin.y.domain.symboltable.*;
-import com.piglatin.y.domain.types.TypeTable;
+import com.piglatin.y.domain.types.YTypeTable;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -31,16 +31,16 @@ import java.util.Set;
  */
 @Getter
 @Setter
-public class SymbolTableBuilder implements Visitor<Void> {
+public class YSymbolTableBuilder implements Visitor<Void> {
 
-    private final SymbolTable symbolTable;
-    private final TypeTable typeTable;
+    private final YSymbolTable symbolTable;
+    private final YTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
     private int loopDepth = 0;
     private String currentFunctionReturnType = null;
 
-    public SymbolTableBuilder(TypeTable typeTable, SemanticErrorReporter errorReporter) {
-        this.symbolTable = new SymbolTable();
+    public YSymbolTableBuilder(YTypeTable typeTable, SemanticErrorReporter errorReporter) {
+        this.symbolTable = new YSymbolTable();
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
     }

@@ -3,39 +3,39 @@ package com.piglatin.y.domain.semantic;
 import com.piglatin.common.domain.cfg.ControlFlowGraph;
 import com.piglatin.y.domain.ast.principal.ASTNode;
 import com.piglatin.y.domain.ast.principal.NodeProgram;
-import com.piglatin.y.domain.cfg.CFGBuilder;
-import com.piglatin.y.domain.symboltable.SymbolTable;
-import com.piglatin.y.domain.types.TypeTable;
+import com.piglatin.y.domain.cfg.YCFGBuilder;
+import com.piglatin.y.domain.symboltable.YSymbolTable;
+import com.piglatin.y.domain.types.YTypeTable;
 
 import java.util.Collections;
 import java.util.Map;
 
-public class SemanticAnalyzer {
+public class YSemanticAnalyzer {
 
     private final String fileName;
 
-    public SemanticAnalyzer(String fileName) {
+    public YSemanticAnalyzer(String fileName) {
         this.fileName = (fileName == null || fileName.isBlank()) ? "<unknown>" : fileName;
     }
 
-    public SemanticAnalyzer() {
+    public YSemanticAnalyzer() {
         this("<unknown>");
     }
 
     public SemanticContext analyze(NodeProgram program) {
         SemanticErrorReporter reporter = new SemanticErrorReporter(fileName);
-        TypeTable typeTable = new TypeTable();
+        YTypeTable typeTable = new YTypeTable();
 
         if (program == null) {
             return new SemanticContext(
-                    new SymbolTable(),
+                    new YSymbolTable(),
                     typeTable,
                     null,
                     Collections.emptyMap(),
                     reporter);
         }
 
-        SymbolTableBuilder symbolBuilder = new SymbolTableBuilder(typeTable, reporter);
+        YSymbolTableBuilder symbolBuilder = new YSymbolTableBuilder(typeTable, reporter);
         program.accept(symbolBuilder);
 
         if (reporter.hasFatalErrors()) {
@@ -48,7 +48,7 @@ public class SemanticAnalyzer {
         }
 
         // Chequeo de Tipos
-        TypeChecker typeChecker = new TypeChecker(
+        YTypeChecker typeChecker = new YTypeChecker(
                 symbolBuilder.getSymbolTable(),
                 typeTable,
                 reporter);
@@ -64,12 +64,12 @@ public class SemanticAnalyzer {
         }
 
         // Generación del Control Flow Graph por cada función
-        CFGBuilder cfgBuilder = new CFGBuilder();
+        YCFGBuilder cfgBuilder = new YCFGBuilder();
         program.accept(cfgBuilder);
         Map<String, ControlFlowGraph<ASTNode>> functionCFGs = cfgBuilder.getFunctionCFGs();
 
         // Plegado de Constantes (opcional)
-        ConstantFolder constantFolder = new ConstantFolder(reporter);
+        YConstantFolder constantFolder = new YConstantFolder(reporter);
         program.accept(constantFolder);
 
         return new SemanticContext(

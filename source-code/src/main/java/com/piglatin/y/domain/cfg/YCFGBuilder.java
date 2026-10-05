@@ -16,7 +16,7 @@ import java.util.Stack;
 
 
 @Getter
-public class CFGBuilder implements Visitor<Void> {
+public class YCFGBuilder implements Visitor<Void> {
 
     private final Map<String, ControlFlowGraph<ASTNode>> functionCFGs = new HashMap<>();
 

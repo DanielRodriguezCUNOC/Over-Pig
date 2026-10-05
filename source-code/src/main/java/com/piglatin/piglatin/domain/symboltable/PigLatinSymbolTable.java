@@ -1,6 +1,5 @@
 package com.piglatin.piglatin.domain.symboltable;
 
-import com.piglatin.common.application.dto.SymbolInfoDTO;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,7 +13,7 @@ import java.util.Stack;
  */
 @Getter
 @Setter
-public class SymbolTable {
+public class PigLatinSymbolTable {
 
     //! Stack for scopes control while semantic analysis
     private Stack<Scope> activeScopes;
@@ -25,7 +24,7 @@ public class SymbolTable {
     //! ID for each scope
     private int scopeCounter;
 
-    public SymbolTable() {
+    public PigLatinSymbolTable() {
         this.activeScopes = new Stack<>();
         this.allCreatedScopes = new ArrayList<>();
         this.scopeCounter = 0;

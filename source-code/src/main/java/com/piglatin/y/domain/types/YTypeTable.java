@@ -14,12 +14,12 @@ import java.util.Set;
  *  - Know the user-defined struct types
  */
 @Getter
-public class TypeTable {
+public class YTypeTable {
 
     private final Set<String> primitiveTypes;
     private final Set<String> userDefinedTypes;
 
-    public TypeTable() {
+    public YTypeTable() {
         this.primitiveTypes = new HashSet<>();
         this.userDefinedTypes = new HashSet<>();
         preloadPrimitives();

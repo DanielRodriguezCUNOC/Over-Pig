@@ -3,30 +3,30 @@ package com.piglatin.zetariano.domain.semantic;
 import com.piglatin.common.domain.cfg.ControlFlowGraph;
 import com.piglatin.zetariano.domain.ast.principal.ASTNode;
 import com.piglatin.zetariano.domain.ast.principal.NodeProgram;
-import com.piglatin.zetariano.domain.cfg.CFGBuilder;
-import com.piglatin.zetariano.domain.symboltable.SymbolTable;
-import com.piglatin.zetariano.domain.types.TypeTable;
+import com.piglatin.zetariano.domain.cfg.ZetarianoCFGBuilder;
+import com.piglatin.zetariano.domain.symboltable.ZetarianoSymbolTable;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
 
 import java.util.Collections;
 import java.util.Map;
 
-public class SemanticAnalyzer {
+public class ZetarianoSemanticAnalyzer {
 
     private final String fileName;
 
-    public SemanticAnalyzer(String fileName) {
+    public ZetarianoSemanticAnalyzer(String fileName) {
         this.fileName = (fileName == null || fileName.isBlank()) ? "<unknown>" : fileName;
     }
 
     public SemanticContext analyze(NodeProgram program) {
-        return analyze(program, new TypeTable(), new SymbolTable());
+        return analyze(program, new ZetarianoTypeTable(), new ZetarianoSymbolTable());
     }
 
-    public SemanticContext analyze(NodeProgram program, TypeTable typeTable, SymbolTable symbolTable) {
+    public SemanticContext analyze(NodeProgram program, ZetarianoTypeTable typeTable, ZetarianoSymbolTable symbolTable) {
 
         SemanticErrorReporter reporter = new SemanticErrorReporter(fileName);
 
-        SymbolTableBuilder symbolBuilder = new SymbolTableBuilder(symbolTable, typeTable, reporter);
+        ZetarianoSymbolTableBuilder symbolBuilder = new ZetarianoSymbolTableBuilder(symbolTable, typeTable, reporter);
         program.accept(symbolBuilder);
 
         if (reporter.hasFatalErrors()) {
@@ -38,7 +38,7 @@ public class SemanticAnalyzer {
                     reporter);
         }
 
-        TypeChecker typeChecker = new TypeChecker(
+        ZetarianoTypeChecker typeChecker = new ZetarianoTypeChecker(
                 symbolBuilder.getSymbolTable(),
                 typeTable,
                 reporter);
@@ -53,10 +53,10 @@ public class SemanticAnalyzer {
                     reporter);
         }
 
-        CFGBuilder cfgBuilder = new CFGBuilder();
+        ZetarianoCFGBuilder cfgBuilder = new ZetarianoCFGBuilder();
         Map<String, ControlFlowGraph<ASTNode>> cfgs = cfgBuilder.build(program);
 
-        ConstantFolder constantFolder = new ConstantFolder(reporter);
+        ZetarianoConstantFolder constantFolder = new ZetarianoConstantFolder(reporter);
 
         return new SemanticContext(
                 symbolBuilder.getSymbolTable(),

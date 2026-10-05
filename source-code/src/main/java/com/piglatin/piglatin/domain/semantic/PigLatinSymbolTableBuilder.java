@@ -15,9 +15,9 @@ import com.piglatin.piglatin.domain.ast.principal.NodeProgram;
 import com.piglatin.piglatin.domain.ast.visitor.Visitor;
 import com.piglatin.piglatin.domain.symboltable.ArraySymbol;
 import com.piglatin.piglatin.domain.symboltable.FunctionSymbol;
-import com.piglatin.piglatin.domain.symboltable.SymbolTable;
+import com.piglatin.piglatin.domain.symboltable.PigLatinSymbolTable;
 import com.piglatin.piglatin.domain.symboltable.VariableSymbol;
-import com.piglatin.piglatin.domain.types.TypeTable;
+import com.piglatin.piglatin.domain.types.PigLatinTypeTable;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -37,16 +37,16 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-public class SymbolTableBuilder implements Visitor<Void> {
+public class PigLatinSymbolTableBuilder implements Visitor<Void> {
 
-private final SymbolTable symbolTable;
-private final TypeTable typeTable;
+private final PigLatinSymbolTable symbolTable;
+private final PigLatinTypeTable typeTable;
 private final SemanticErrorReporter errorReporter;
 private int loopDepth = 0;
 private boolean hasImports = false;
 
-    public SymbolTableBuilder(TypeTable typeTable, SemanticErrorReporter errorReporter) {
-        this.symbolTable = new SymbolTable();
+    public PigLatinSymbolTableBuilder(PigLatinTypeTable typeTable, SemanticErrorReporter errorReporter) {
+        this.symbolTable = new PigLatinSymbolTable();
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
     }
@@ -78,9 +78,15 @@ private boolean hasImports = false;
         if (n.getInitializer() != null) n.getInitializer().accept(this);
 
         if (n.getType() != null && !typeTable.exists(n.getType())) {
-            errorReporter.reportError(
-                    "Type " + n.getType() + " is not defined.", n.getLine(), n.getColumn()
-            );
+
+            if (hasImports){
+                typeTable.registerType(n.getType());
+            }else {
+                errorReporter.reportError(
+                        "Type " + n.getType() + " is not defined.", n.getLine(), n.getColumn()
+                );
+            }
+
         }
 
         //* Declare in the current scope
@@ -100,7 +106,7 @@ private boolean hasImports = false;
 
         //* Validate array element type
         if (!typeTable.exists(n.getElementType()))
-            errorReporter.reportError("Type " + n.getElementType() + " is not defined." + n.getLine(),  n.getLine(), n.getColumn());
+            errorReporter.reportError("Type " + n.getElementType() + " is not defined. " + n.getLine(),  n.getLine(), n.getColumn());
 
         //* Visit initial values if present
         if (n.getInitialValues() != null){

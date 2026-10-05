@@ -2,7 +2,7 @@ package com.piglatin.y.domain.symboltable;
 
 import java.util.*;
 
-public class SymbolTable {
+public class YSymbolTable {
     private final Deque<Map<String, Symbol>> scopes = new ArrayDeque<>();
     private final Deque<String> scopeNames = new ArrayDeque<>();
     private final Map<String, FunctionSymbol> functions = new HashMap<>();

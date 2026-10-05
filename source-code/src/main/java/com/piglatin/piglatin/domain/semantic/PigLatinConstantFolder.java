@@ -8,19 +8,19 @@ import com.piglatin.piglatin.domain.ast.nodes.literal.*;
 import com.piglatin.piglatin.domain.ast.nodes.lvalue.*;
 import com.piglatin.piglatin.domain.ast.principal.*;
 import com.piglatin.piglatin.domain.ast.visitor.Visitor;
-import com.piglatin.piglatin.domain.symboltable.SymbolTable;
+import com.piglatin.piglatin.domain.symboltable.PigLatinSymbolTable;
 import com.piglatin.piglatin.domain.symboltable.VariableSymbol;
 
 /**
  * This class evaluate expressions just in time using the visitor (again -_-)
  */
 
-public class ConstantFolder implements Visitor<Object> {
+public class PigLatinConstantFolder implements Visitor<Object> {
 
     private final SemanticErrorReporter errorReporter;
-    private final SymbolTable symbolTable;
+    private final PigLatinSymbolTable symbolTable;
 
-    public ConstantFolder(SemanticErrorReporter errorReporter, SymbolTable symbolTable) {
+    public PigLatinConstantFolder(SemanticErrorReporter errorReporter, PigLatinSymbolTable symbolTable) {
         this.errorReporter = errorReporter;
         this.symbolTable = symbolTable;
     }

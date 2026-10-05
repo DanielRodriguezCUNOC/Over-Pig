@@ -6,7 +6,7 @@ import com.piglatin.y.domain.ast.principal.NodeProgram;
 import com.piglatin.y.domain.ast.statements.*;
 import com.piglatin.y.domain.ast.visitor.Visitor;
 import com.piglatin.y.domain.symboltable.*;
-import com.piglatin.y.domain.types.TypeTable;
+import com.piglatin.y.domain.types.YTypeTable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,19 +30,19 @@ import java.util.List;
  *
  * !EYE!!: Type errors are reported and analysis continues (never throws).
  */
-public class TypeChecker implements Visitor<String> {
+public class YTypeChecker implements Visitor<String> {
 
-    private final SymbolTable symbolTable;
-    private final TypeTable typeTable;
+    private final YSymbolTable symbolTable;
+    private final YTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
-    private final ConstantFolder constantFolder;
+    private final YConstantFolder constantFolder;
     private String currentFunctionReturnType;
 
-    public TypeChecker(SymbolTable symbolTable, TypeTable typeTable, SemanticErrorReporter errorReporter) {
+    public YTypeChecker(YSymbolTable symbolTable, YTypeTable typeTable, SemanticErrorReporter errorReporter) {
         this.symbolTable = symbolTable;
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
-        this.constantFolder = new ConstantFolder(errorReporter);
+        this.constantFolder = new YConstantFolder(errorReporter);
         this.currentFunctionReturnType = null;
     }
 
@@ -595,7 +595,18 @@ public class TypeChecker implements Visitor<String> {
         }
 
         List<ParameterType> paramTypes = function.getParameterTypes();
-        for (int i = 0; i < arity; i++) {
+
+        if (paramTypes.size() != arity) {
+            errorReporter.reportError(
+                    "Function '" + n.getFunctionName() + "' expects " + paramTypes.size() + " arguments, got " + arity + ".",
+                    n.getLine(), n.getColumn());
+            return function.getReturnType();
+        }
+
+        int paramCount = paramTypes.size();
+        int loopCount = Math.min(arity, paramCount);
+
+        for (int i = 0; i < loopCount; i++) {
             ParameterType expected = paramTypes.get(i);
             String actual = argTypes.get(i);
             if (expected == null || actual == null) continue;

@@ -1,6 +1,7 @@
 package com.piglatin.zetariano.infrastructure.codegen.c3d;
 
 import com.piglatin.common.infrastructure.codegen.C3DContext;
+import com.piglatin.zetariano.domain.ast.enums.AssignmentOperator;
 import com.piglatin.zetariano.domain.ast.expressions.*;
 import com.piglatin.zetariano.domain.ast.expressions.literals.*;
 import com.piglatin.zetariano.domain.ast.principal.ASTNode;
@@ -8,7 +9,7 @@ import com.piglatin.zetariano.domain.ast.principal.NodeProgram;
 import com.piglatin.zetariano.domain.ast.statements.*;
 import com.piglatin.zetariano.domain.ast.visitor.Visitor;
 import com.piglatin.zetariano.domain.symboltable.*;
-import com.piglatin.zetariano.domain.types.TypeTable;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -23,8 +24,8 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
 
     private final C3DContext ctx;
     private final ClassLayout layout;
-    private final SymbolTable symbolTable;
-    private final TypeTable typeTable;
+    private final ZetarianoSymbolTable symbolTable;
+    private final ZetarianoTypeTable typeTable;
 
     private String currentClassName;
     private int currentArity;
@@ -36,7 +37,7 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
     private final Deque<String> breakLabels = new ArrayDeque<>();
     private final Deque<String> continueLabels = new ArrayDeque<>();
 
-    public ZetarianoC3DVisitor(C3DContext ctx, ClassLayout layout, SymbolTable symbolTable, TypeTable typeTable) {
+    public ZetarianoC3DVisitor(C3DContext ctx, ClassLayout layout, ZetarianoSymbolTable symbolTable, ZetarianoTypeTable typeTable) {
         this.ctx = ctx;
         this.layout = layout;
         this.symbolTable = symbolTable;
@@ -265,22 +266,25 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
     @Override
     public String visitAssignment(NodeAssignment n) {
         if (n == null) return null;
-        String op = n.getOperator();
-        String addr = place(n.getLvalue());
+        AssignmentOperator op = n.getOperator();
+        String addr = place(n.getTarget());
 
-        if ("++".equals(op) || "--".equals(op)) {
-            ctx.emit("++".equals(op) ? "+" : "-", addr, "1", addr);
+        if (AssignmentOperator.INCREMENT.equals(op) || AssignmentOperator.DECREMENT.equals(op)) {
+
+            String operator = AssignmentOperator.INCREMENT.equals(op) ? "+" : "-";
+            ctx.emit(operator, addr, "1", addr);
             return null;
         }
 
-        if ("=".equals(op)) {
+        if (AssignmentOperator.ASSIGN.equals(op)) {
             String rhs = n.getExpression() != null ? n.getExpression().accept(this) : "0";
             ctx.emit("=", rhs, null, addr);
             return null;
         }
 
-        String leftType = staticTypeOf(n.getLvalue());
-        if ("+=".equals(op) && "String".equals(leftType)) {
+        String leftType = staticTypeOf(n.getTarget());
+
+        if (AssignmentOperator.ADD_ASSIGN.equals(op) && "String".equals(leftType)) {
             String rightType = staticTypeOf(n.getExpression());
             String rhs = n.getExpression() != null ? n.getExpression().accept(this) : "0";
             String rhsStr = "String".equals(rightType) ? rhs : toStr(rhs, rightType);
@@ -290,7 +294,7 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
             return null;
         }
 
-        String cop = op.substring(0, 1);
+        String cop = getCompoundOperator(op);
         String rhs = n.getExpression() != null ? n.getExpression().accept(this) : "0";
         String t = ctx.newTemp();
         ctx.emit(cop, addr, rhs, t);
@@ -767,7 +771,7 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
             return "Heap[(int)(" + targetPlace + "+" + off + ")]";
         }
         if (lv instanceof NodeIndexAccess ia) {
-            String basePlace = ia.getTarget() != null ? ia.getTarget().accept(this) : "0";
+            String basePlace = ia.getArrayTarget() != null ? ia.getArrayTarget().accept(this) : "0";
             String idxPlace = ia.getIndex() != null ? ia.getIndex().accept(this) : "0";
             return "Heap[(int)(" + basePlace + "+" + idxPlace + ")]";
         }
@@ -802,7 +806,7 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
             return typeOfSymbol(sym);
         }
         if (node instanceof NodeIndexAccess ia) {
-            String targetType = staticTypeOf(ia.getTarget());
+            String targetType = staticTypeOf(ia.getArrayTarget());
             if (targetType != null && targetType.endsWith("[]")) {
                 return targetType.substring(0, targetType.length() - 2);
             }
@@ -859,5 +863,18 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
         if (sym instanceof ArraySymbol as) return as.getElementType() + "[]".repeat(as.getDimensions());
         if (sym instanceof ClassSymbol cs) return cs.getName();
         return null;
+    }
+
+    private String getCompoundOperator(AssignmentOperator operator) {
+        return switch (operator) {
+            case ADD_ASSIGN -> "+";
+            case SUB_ASSIGN -> "-";
+            case MUL_ASSIGN -> "*";
+            case DIV_ASSIGN -> "/";
+            case MOD_ASSIGN -> "%";
+            default -> throw new IllegalArgumentException(
+                    "Operator '" + operator + "' is not a compound assignment."
+            );
+        };
     }
 }

@@ -2,34 +2,30 @@ parser grammar ZetarianoParser;
 
 options { tokenVocab = ZetarianoLexer; }
 
-program
-    : classDefinition EOF
+compilationUnit
+    : classDeclaration* EOF
     ;
 
-classDefinition
-    : PUBLIC? CLASS ID LEFT_BRACE globalDeclarations RIGHT_BRACE
+classDeclaration
+    : PUBLIC? CLASS IDENTIFIER LBRACE classBodyMember* RBRACE
     ;
 
-globalDeclarations
-    : globalDeclaration*
-    ;
-
-globalDeclaration
-    : fieldDeclaration                                              #GlobalField
-    | methodDeclaration                                             #GlobalMethod
-    | constructorDeclaration                                        #GlobalConstructor
+classBodyMember
+    : fieldDeclaration                                                    #FieldDeclarationClassBodyMember
+    | constructorDeclaration                                              #ConstructorDeclarationClassBodyMember
+    | methodDeclaration                                                   #MethodDeclarationClassBodyMember
     ;
 
 fieldDeclaration
-    : type (LEFT_BRACKET RIGHT_BRACKET)* ID (ASSIGN (expression | arrayInitializer))? SEMICOLON
-    ;
-
-methodDeclaration
-    : PUBLIC? (type | VOID) ID LEFT_PAREN parameterList? RIGHT_PAREN block
+    : type IDENTIFIER (ASSIGN expression)? SEMI
     ;
 
 constructorDeclaration
-    : PUBLIC? ID LEFT_PAREN parameterList? RIGHT_PAREN block
+    : PUBLIC? IDENTIFIER LPAREN parameterList? RPAREN block
+    ;
+
+methodDeclaration
+    : PUBLIC? typeOrVoid IDENTIFIER LPAREN parameterList? RPAREN block
     ;
 
 parameterList
@@ -37,130 +33,213 @@ parameterList
     ;
 
 parameter
-    : type ID
-    | type (LEFT_BRACKET RIGHT_BRACKET)* ID
+    : type IDENTIFIER
     ;
 
-block
-    : LEFT_BRACE mainInstructions RIGHT_BRACE
-    | instruction
-    ;
-
-mainInstructions
-    : instruction*
-    ;
-
-instruction
-    : assignment SEMICOLON                                          #InstructionAssignment
-    | readStatement SEMICOLON                                       #InstructionRead
-    | printStatement SEMICOLON                                      #InstructionPrint
-    | ifStatement                                                   #InstructionIf
-    | switchStatement                                               #InstructionSwitch
-    | whileStatement                                                #InstructionWhile
-    | doWhileStatement SEMICOLON                                    #InstructionDoWhile
-    | forStatement                                                  #InstructionFor
-    | jumpStatement SEMICOLON                                       #InstructionJump
-    | variableDeclaration SEMICOLON                                 #InstructionDeclaration
-    | arrayDeclaration SEMICOLON                                    #InstructionArrayDeclaration
-    | expression SEMICOLON                                          #InstructionExpression
-    ;
-
-variableDeclaration
-    : type ID (ASSIGN expression)?
-    ;
-
-arrayDeclaration
-    : type (LEFT_BRACKET RIGHT_BRACKET)+ ID (ASSIGN (expression | arrayInitializer))?
-    ;
-
-arrayInitializer
-    : LEFT_BRACE (expression | arrayInitializer) (COMMA (expression | arrayInitializer))* RIGHT_BRACE
-    ;
-
-assignment
-    : lvalue (ASSIGN | ADD_ASSIGN | SUB_ASSIGN | MULT_ASSIGN) expression
-    | lvalue (INC | DEC)
-    ;
-
-readStatement
-    : READLN LEFT_PAREN RIGHT_PAREN
-    ;
-
-printStatement
-    : (PRINT | PRINTLN) LEFT_PAREN expression? RIGHT_PAREN
-    ;
-
-ifStatement
-    : IF LEFT_PAREN expression RIGHT_PAREN block (ELSE block)?
-    ;
-
-switchStatement
-    : SWITCH LEFT_PAREN expression RIGHT_PAREN LEFT_BRACE (CASE expression COLON mainInstructions)* (DEFAULT COLON mainInstructions)? RIGHT_BRACE
-    ;
-
-whileStatement
-    : WHILE LEFT_PAREN expression RIGHT_PAREN block
-    ;
-
-doWhileStatement
-    : DO block WHILE LEFT_PAREN expression RIGHT_PAREN
-    ;
-
-forStatement
-    : FOR LEFT_PAREN (variableDeclaration | assignment)? SEMICOLON expression? SEMICOLON (assignment | expression)? RIGHT_PAREN block
-    ;
-
-jumpStatement
-    : BREAK                                                         #JumpBreak
-    | CONTINUE                                                      #JumpContinue
-    | RETURN expression?                                            #JumpReturn
-    ;
-
-lvalue
-    : ID
-    | lvalue DOT ID
-    | lvalue LEFT_BRACKET expression RIGHT_BRACKET
+typeOrVoid
+    : VOID
+    | type
     ;
 
 type
+    : primitiveType (LBRACK RBRACK)*
+    | IDENTIFIER (LBRACK RBRACK)*
+    ;
+
+primitiveType
     : INT
-    | DOUBLE
-    | CHAR_TYPE
+    | CHAR
     | BOOLEAN
-    | STRING_TYPE
-    | ID // For class types
+    | STRING
+    ;
+
+block
+    : LBRACE statement* RBRACE
+    ;
+
+statement
+    : block                                                             #StatementBlock
+    | localVariableDeclaration SEMI                                     #LocalVariableDeclarationStatement
+    | assignmentStatement SEMI                                          #StatementAssignment
+    | expressionStatement SEMI                                          #StatementExpression
+    | ifStatement                                                       #StatementIf
+    | whileStatement                                                    #StatementWhile
+    | doWhileStatement SEMI                                             #StatementDoWhile
+    | forStatement                                                      #StatementFor
+    | switchStatement                                                   #StatementSwitch
+    | returnStatement SEMI                                              #StatementReturn
+    | breakStatement SEMI                                               #StatementBreak
+    | continueStatement SEMI                                            #StatementContinue
+    | SEMI                                                              #StatementEmpty
+    ;
+
+localVariableDeclaration
+    : type IDENTIFIER (ASSIGN expression)?
+    ;
+
+assignmentStatement
+    : target assignmentOperator expression
+    ;
+
+assignmentOperator
+    : ASSIGN                                                        #AssignmentOperatorAssign
+    | ADD_ASSIGN                                                    #AssignmentOperatorAddAssign
+    | SUB_ASSIGN                                                    #AssignmentOperatorSubAssign
+    | MUL_ASSIGN                                                    #AssignmentOperatorMulAssign
+    | DIV_ASSIGN                                                    #AssignmentOperatorDivAssign
+    | MOD_ASSIGN                                                    #AssignmentOperatorModAssign
+    ;
+
+target
+    : IDENTIFIER (LBRACK expression RBRACK)* (DOT IDENTIFIER (LBRACK expression RBRACK)*)*
+    ;
+
+expressionStatement
+    : expression
+    ;
+
+ifStatement
+    : IF LPAREN expression RPAREN statement (ELSE statement)?
+    ;
+
+whileStatement
+    : WHILE LPAREN expression RPAREN statement
+    ;
+
+doWhileStatement
+    : DO statement WHILE LPAREN expression RPAREN
+    ;
+
+forStatement
+    : FOR LPAREN forInit? SEMI expression? SEMI forUpdate? RPAREN statement
+    ;
+
+forInit
+    : localVariableDeclaration
+    | assignmentStatement (COMMA assignmentStatement)*
+    | expression (COMMA expression)*
+    ;
+
+forUpdate
+    : assignmentStatement (COMMA assignmentStatement)*
+    | expression (COMMA expression)*
+    ;
+
+switchStatement
+    : SWITCH LPAREN expression RPAREN LBRACE switchBlockStatementGroup* RBRACE
+    ;
+
+switchBlockStatementGroup
+    : switchLabel+ statement*
+    ;
+
+switchLabel
+    : CASE expression COLON
+    | DEFAULT COLON
+    ;
+
+returnStatement
+    : RETURN expression?
+    ;
+
+breakStatement
+    : BREAK
+    ;
+
+continueStatement
+    : CONTINUE
     ;
 
 expression
-    : LEFT_PAREN expression RIGHT_PAREN                             #ExprParen
-    | (PLUS | MINUS | NOT | INC | DEC) expression                   #ExprUnary
-    | expression (MULT | DIV | MOD) expression                      #ExprMultiplicative
-    | expression (PLUS | MINUS) expression                          #ExprAdditive
-    | expression (LESS | GREATER | LESSEQUAL | GREATEREQUAL) expression #ExprRelational
-    | expression (EQUAL | NOTEQUAL) expression                      #ExprEquality
-    | expression AND expression                                     #ExprAnd
-    | expression OR expression                                      #ExprOr
-    | expression QUESTION expression COLON expression               #ExprTernary
-    | primary                                                       #ExprPrimary
+    : ternaryExpression
+    ;
+
+ternaryExpression
+    : logicalOrExpression (QUESTION expression COLON ternaryExpression)?
+    ;
+
+logicalOrExpression
+    : logicalAndExpression (OR logicalAndExpression)*
+    ;
+
+logicalAndExpression
+    : equalityExpression (AND equalityExpression)*
+    ;
+
+equalityExpression
+    : relationalExpression ((EQUAL | NOTEQUAL) relationalExpression)*
+    ;
+
+relationalExpression
+    : additiveExpression ((LT | LE | GT | GE) additiveExpression)*
+    ;
+
+additiveExpression
+    : multiplicativeExpression ((PLUS | MINUS) multiplicativeExpression)*
+    ;
+
+multiplicativeExpression
+    : unaryExpression ((STAR | SLASH | PERCENT) unaryExpression)*
+    ;
+
+unaryExpression
+    : PLUS unaryExpression                                          #UnaryPlus
+    | MINUS unaryExpression                                         #UnaryMinus
+    | NOT unaryExpression                                           #UnaryNot
+    | INC target                                                    #UnaryPreIncrement
+    | DEC target                                                    #UnaryPreDecrement
+    | postfixExpression                                             #UnaryPostfix
+    ;
+
+postfixExpression
+    : primary (INC | DEC)?
     ;
 
 primary
-    : literal                                                       #PrimaryLiteral
-    | NEW ID LEFT_PAREN argumentList? RIGHT_PAREN                  #PrimaryNewObject
-    | NEW type (LEFT_BRACKET expression RIGHT_BRACKET)+            #PrimaryNewArray
-    | lvalue (LEFT_PAREN argumentList? RIGHT_PAREN)?               #PrimaryLvalueOrCall
+    : primaryCore primarySuffix*
+    ;
+
+primaryCore
+    : LPAREN expression RPAREN                          #ParenthesizedExpression
+    | literal                                           #LiteralPrimary
+    | allocationExpression                              #AllocationExpressionPrimary
+    | IDENTIFIER LPAREN expressionList? RPAREN          #DirectMethodCall
+    | IDENTIFIER                                        #VariableOrField
+    ;
+
+primarySuffix
+    : DOT IDENTIFIER LPAREN expressionList? RPAREN                              #MethodCallSuffix
+    | DOT IDENTIFIER                                                            #FieldAccessSuffix
+    | LBRACK expression RBRACK                                                  #ArrayAccessSuffix
+    ;
+
+allocationExpression
+    : NEW primitiveType arrayDimensions                                         #AllocationExpressionArray
+    | NEW IDENTIFIER (arrayDimensions | LPAREN expressionList? RPAREN)          #AllocationExpressionObject
+    ;
+
+arrayDimensions
+    : (LBRACK expression RBRACK)+ (LBRACK RBRACK)*
+    ;
+
+methodCall
+    : (primary DOT)? IDENTIFIER LPAREN expressionList? RPAREN
+    ;
+
+fieldAccess
+    : primary LBRACK expression RBRACK                                      #ArrayAccessing
+    | primary DOT IDENTIFIER                                                #FieldAccessing
+    ;
+
+expressionList
+    : expression (COMMA expression)*
     ;
 
 literal
-    : INTEGER
-    | DECIMAL
-    | CHAR
-    | STRING
+    : INT_LITERAL
+    | CHAR_LITERAL
+    | STRING_LITERAL
     | TRUE
     | FALSE
     | NULL
-    ;
-
-argumentList
-    : expression (COMMA expression)*
     ;

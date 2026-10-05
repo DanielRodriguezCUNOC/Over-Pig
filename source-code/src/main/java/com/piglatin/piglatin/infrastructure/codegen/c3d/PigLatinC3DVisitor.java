@@ -13,9 +13,10 @@ import com.piglatin.piglatin.domain.ast.nodes.lvalue.NodeLvalue;
 import com.piglatin.piglatin.domain.ast.principal.ASTNode;
 import com.piglatin.piglatin.domain.ast.principal.NodeProgram;
 import com.piglatin.piglatin.domain.ast.visitor.Visitor;
+import com.piglatin.y.domain.symboltable.YSymbolTable;
 import com.piglatin.zetariano.domain.symboltable.MethodSymbol;
-import com.piglatin.zetariano.domain.symboltable.SymbolTable;
-import com.piglatin.zetariano.domain.types.TypeTable;
+import com.piglatin.zetariano.domain.symboltable.ZetarianoSymbolTable;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
 import com.piglatin.zetariano.infrastructure.codegen.c3d.ClassLayout;
 
 import java.util.ArrayDeque;
@@ -31,9 +32,9 @@ public class PigLatinC3DVisitor implements Visitor<String> {
 
     private final C3DContext ctx;
     private final ClassLayout layout;                        // de Zetariano
-    private final SymbolTable symbolTable;                   // de Zetariano
-    private final TypeTable typeTable;                       // de Zetariano
-    private final com.piglatin.y.domain.symboltable.SymbolTable ySymbolTable; // BRIDGE a Y
+    private final ZetarianoSymbolTable symbolTable;                   // de Zetariano
+    private final ZetarianoTypeTable typeTable;                       // de Zetariano
+    private final YSymbolTable ySymbolTable; // BRIDGE a Y
 
     // Variables locales/globales de PigLatin: nombre -> tipo
     private final Map<String, String> locals = new HashMap<>();
@@ -45,9 +46,9 @@ public class PigLatinC3DVisitor implements Visitor<String> {
 
     public PigLatinC3DVisitor(C3DContext ctx,
                               ClassLayout layout,
-                              SymbolTable symbolTable,
-                              TypeTable typeTable,
-                              com.piglatin.y.domain.symboltable.SymbolTable ySymbolTable) {
+                              ZetarianoSymbolTable symbolTable,
+                              ZetarianoTypeTable typeTable,
+                              YSymbolTable ySymbolTable) {
         this.ctx = ctx;
         this.layout = layout;
         this.symbolTable = symbolTable;

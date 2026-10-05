@@ -4,14 +4,12 @@ import com.piglatin.common.application.dto.*;
 import com.piglatin.common.application.ports.input.CompilerUseCase;
 import com.piglatin.common.infrastructure.codegen.C3DContext;
 import com.piglatin.common.infrastructure.codegen.C3DToCConverter;
-import com.piglatin.common.infrastructure.codegen.Quadruple;
 import com.piglatin.zetariano.domain.ast.principal.NodeProgram;
-import com.piglatin.zetariano.domain.ast.statements.NodeClassDeclaration;
-import com.piglatin.zetariano.domain.ast.visitor.ASTBuilder;
-import com.piglatin.zetariano.domain.semantic.SemanticAnalyzer;
+import com.piglatin.zetariano.domain.ast.visitor.ZetarianoASTBuilder;
+import com.piglatin.zetariano.domain.semantic.ZetarianoSemanticAnalyzer;
 import com.piglatin.zetariano.domain.semantic.SemanticContext;
-import com.piglatin.zetariano.domain.symboltable.SymbolTable;
-import com.piglatin.zetariano.domain.types.TypeTable;
+import com.piglatin.zetariano.domain.symboltable.ZetarianoSymbolTable;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
 import com.piglatin.zetariano.infrastructure.codegen.c3d.ClassLayout;
 import com.piglatin.zetariano.infrastructure.codegen.c3d.ZetarianoC3DVisitor;
 import com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoLexer;
@@ -55,7 +53,7 @@ public class ZetarianoCompiler implements CompilerUseCase {
 
         ParseTree parseTree;
         try {
-            parseTree = parser.program();
+            parseTree = parser.compilationUnit();
         } catch (Exception e) {
             errors.add(new CompilationErrorDTO(CompilationStage.SYNTACTIC_ANALYSIS, "Fatal Error: " + e.getMessage(), 0, 0, request.getFileName()));
             return new CompileResponseDTO(false, errors, null, null, System.currentTimeMillis() - startTime);
@@ -65,11 +63,11 @@ public class ZetarianoCompiler implements CompilerUseCase {
             return new CompileResponseDTO(false, errors, null, null, System.currentTimeMillis() - startTime);
         }
 
-        ASTBuilder astBuilder = new ASTBuilder();
+        ZetarianoASTBuilder astBuilder = new ZetarianoASTBuilder();
         NodeProgram ast = (NodeProgram) astBuilder.visit(parseTree);
 
-        TypeTable typeTable = new TypeTable();
-        SymbolTable symbolTable = new SymbolTable();
+        ZetarianoTypeTable typeTable = new ZetarianoTypeTable();
+        ZetarianoSymbolTable symbolTable = new ZetarianoSymbolTable();
         ClassLayout classLayout = new ClassLayout();
 
         List<NodeProgram> siblingPrograms = new ArrayList<>();
@@ -81,7 +79,7 @@ public class ZetarianoCompiler implements CompilerUseCase {
             try {
                 if (siblingProgram == null || siblingProgram.getClassDeclaration() == null) continue;
                 typeTable.registerClass(siblingProgram.getClassDeclaration().getName());
-                SemanticAnalyzer siblingAnalyzer = new SemanticAnalyzer(request.getFileName());
+                ZetarianoSemanticAnalyzer siblingAnalyzer = new ZetarianoSemanticAnalyzer(request.getFileName());
                 SemanticContext siblingContext = siblingAnalyzer.analyze(siblingProgram, typeTable, symbolTable);
                 classLayout.registerClass(siblingProgram.getClassDeclaration());
                 if (siblingContext.hasErrors()) {
@@ -94,7 +92,7 @@ public class ZetarianoCompiler implements CompilerUseCase {
             }
         }
 
-        SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(request.getFileName());
+        ZetarianoSemanticAnalyzer semanticAnalyzer = new ZetarianoSemanticAnalyzer(request.getFileName());
         SemanticContext context = semanticAnalyzer.analyze(ast, typeTable, symbolTable);
 
         if (context.getErrorReporter() != null && context.getErrorReporter().hasErrors()) {
@@ -162,8 +160,8 @@ public class ZetarianoCompiler implements CompilerUseCase {
                 ZetarianoParser parser = new ZetarianoParser(tokens);
                 parser.removeErrorListeners();
 
-                ParseTree tree = parser.program();
-                ASTBuilder builder = new ASTBuilder();
+                ParseTree tree = parser.compilationUnit();
+                ZetarianoASTBuilder builder = new ZetarianoASTBuilder();
                 NodeProgram program = (NodeProgram) builder.visit(tree);
 
                 if (program != null && program.getClassDeclaration() != null) {

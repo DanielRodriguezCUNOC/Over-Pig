@@ -7,12 +7,12 @@ import lombok.Setter;
 @Getter
 @Setter
 public class NodeIndexAccess extends NodeLvalue {
-    private NodeLvalue target;
+    private NodeLvalue arrayTarget;
     private NodeExpression index;
 
-    public NodeIndexAccess(NodeLvalue target, NodeExpression index, int line, int column) {
+    public NodeIndexAccess(NodeLvalue arrayTarget, NodeExpression index, int line, int column) {
         super(line, column);
-        this.target = target;
+        this.arrayTarget = arrayTarget;
         this.index = index;
     }
 

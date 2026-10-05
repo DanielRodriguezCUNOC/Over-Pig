@@ -23,11 +23,8 @@ import java.util.List;
  * Each visit Context method takes a CST node and returns the equivalent AST
  * node
  */
-public class ASTBuilder extends LatinParserBaseVisitor<ASTNode> {
+public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
 
-    //* ============================================================
-    //* ROOT PROGRAM
-    //* ============================================================
 
     @Override
     public ASTNode visitProgram(LatinParser.ProgramContext ctx) {
@@ -574,7 +571,7 @@ public class ASTBuilder extends LatinParserBaseVisitor<ASTNode> {
         ASTNode left = visit(operands.getFirst());
         for (int i = 1; i < operands.size(); i++) {
             String op = ctx.getChild(2 * i - 1).getText();
-            ASTNode right = visit(operands.get(i + 1));
+            ASTNode right = visit(operands.get(i));
             left = new NodeBinaryOperation(
                     left,
                     op,

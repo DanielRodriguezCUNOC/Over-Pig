@@ -6,26 +6,26 @@ import com.piglatin.zetariano.domain.ast.principal.*;
 import com.piglatin.zetariano.domain.ast.statements.*;
 import com.piglatin.zetariano.domain.ast.visitor.Visitor;
 import com.piglatin.zetariano.domain.symboltable.*;
-import com.piglatin.zetariano.domain.types.TypeTable;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class TypeChecker implements Visitor<String> {
+public class ZetarianoTypeChecker implements Visitor<String> {
 
-    private final SymbolTable symbolTable;
-    private final TypeTable typeTable;
+    private final ZetarianoSymbolTable symbolTable;
+    private final ZetarianoTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
-    private final ConstantFolder constantFolder;
+    private final ZetarianoConstantFolder constantFolder;
     private String currentClassName;
     private String currentMethodReturnType;
 
-    public TypeChecker(SymbolTable symbolTable, TypeTable typeTable, SemanticErrorReporter errorReporter) {
+    public ZetarianoTypeChecker(ZetarianoSymbolTable symbolTable, ZetarianoTypeTable typeTable, SemanticErrorReporter errorReporter) {
         this.symbolTable = symbolTable;
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
-        this.constantFolder = new ConstantFolder(errorReporter);
+        this.constantFolder = new ZetarianoConstantFolder(errorReporter);
         this.currentClassName = null;
         this.currentMethodReturnType = null;
     }
@@ -288,51 +288,13 @@ public class TypeChecker implements Visitor<String> {
     public String visitAssignment(NodeAssignment n) {
         if (n == null) return null;
 
-        String leftType = n.getLvalue() != null ? n.getLvalue().accept(this) : null;
+        String leftType = n.getTarget() != null ? n.getTarget().accept(this) : null;
         String rightType = n.getExpression() != null ? n.getExpression().accept(this) : null;
 
         if (leftType == null || rightType == null) return null;
 
-        String op = n.getOperator();
-        switch (op) {
-            case "=" -> {
-                if (!isAssignable(leftType, rightType)) {
-                    errorReporter.reportError(
-                            "Cannot assign '" + rightType + "' to '" + leftType + "'.", n);
-                }
-            }
-            case "+=" -> {
-                if ("String".equals(leftType)) {
-                    if (!isStringConcatenable(rightType)) {
-                        errorReporter.reportError("Cannot append '" + rightType + "' to 'String'.", n);
-                    }
-                } else if (isNumeric(leftType) && isNumeric(rightType)) {
-                    if ("int".equals(leftType) && "double".equals(rightType)) {
-                        errorReporter.reportError("Cannot assign 'double' to 'int' in compound assignment.", n);
-                    }
-                } else {
-                    errorReporter.reportError(
-                            "Operator '+=' cannot be applied to '" + leftType + "' and '" + rightType + "'.", n);
-                }
-            }
-            case "-=", "*=" -> {
-                if (isNumeric(leftType) && isNumeric(rightType)) {
-                    if ("int".equals(leftType) && "double".equals(rightType)) {
-                        errorReporter.reportError("Cannot assign 'double' to 'int' in compound assignment.", n);
-                    }
-                } else {
-                    errorReporter.reportError(
-                            "Operator '" + op + "' cannot be applied to '" + leftType + "' and '" + rightType + "'.", n);
-                }
-            }
-            case "++", "--" -> {
-                if (!isNumeric(leftType)) {
-                    errorReporter.reportError(
-                            "Operator '" + op + "' requires numeric operand, found '" + leftType + "'.", n);
-                }
-            }
-            default -> errorReporter.reportError("Unknown assignment operator '" + op + "'.", n);
-        }
+        validateAssignment(n, leftType, rightType);
+
         return null;
     }
 
@@ -720,7 +682,7 @@ public class TypeChecker implements Visitor<String> {
     public String visitIndexAccess(NodeIndexAccess n) {
         if (n == null) return null;
 
-        String targetType = n.getTarget() != null ? n.getTarget().accept(this) : null;
+        String targetType = n.getArrayTarget() != null ? n.getArrayTarget().accept(this) : null;
         String indexType = n.getIndex() != null ? n.getIndex().accept(this) : null;
 
         if (indexType != null && !"int".equals(indexType)) {
@@ -945,4 +907,124 @@ public class TypeChecker implements Visitor<String> {
         if (isReferenceType(leftType) && isReferenceType(rightType)) return true;
         return false;
     }
+
+
+    private void validateSimpleAssignment(
+            NodeAssignment node,
+            String leftType,
+            String rightType
+    ) {
+        if (!isAssignable(leftType, rightType)) {
+            report(
+                    node,
+                    "Cannot assign '" + rightType + "' to '" + leftType + "'."
+            );
+        }
+    }
+
+    private void validateStringConcatenation(
+            NodeAssignment node,
+            String rightType
+    ) {
+        if (!isStringConcatenable(rightType)) {
+            report(
+                    node,
+                    "Cannot append '" + rightType + "' to 'String'."
+            );
+        }
+    }
+
+    private void validateNumericCompoundAssignment(
+            NodeAssignment node,
+            String leftType,
+            String rightType,
+            String operator
+    ) {
+        if (!isNumeric(leftType) || !isNumeric(rightType)) {
+            report(
+                    node,
+                    "Operator '" + operator +
+                            "' cannot be applied to '" +
+                            leftType + "' and '" +
+                            rightType + "'."
+            );
+            return;
+        }
+
+        if (isInvalidIntDoubleAssignment(leftType, rightType)) {
+            report(
+                    node,
+                    "Cannot assign 'double' to 'int' in compound assignment."
+            );
+        }
+    }
+
+    private boolean isInvalidIntDoubleAssignment(
+            String leftType,
+            String rightType
+    ) {
+        return "int".equals(leftType)
+                && "double".equals(rightType);
+    }
+
+    private void report(NodeAssignment node, String message) {
+        errorReporter.reportError(message, node);
+    }
+
+    private void validateAssignment(
+            NodeAssignment node,
+            String leftType,
+            String rightType
+    ) {
+        switch (node.getOperator()) {
+            case ASSIGN ->
+                    validateSimpleAssignment(node, leftType, rightType);
+
+            case ADD_ASSIGN ->
+                    validateAddAssignment(node, leftType, rightType);
+
+            case SUB_ASSIGN, MUL_ASSIGN ->
+                    validateNumericCompoundAssignment(node, leftType, rightType, node.getOperator().toString());
+
+            case INCREMENT, DECREMENT ->
+                    validateIncrementOrDecrement(node, leftType);
+
+            default ->
+                    report(node, "Unknown assignment operator '" +
+                            node.getOperator() + "'.");
+        }
+    }
+
+    private void validateIncrementOrDecrement(
+            NodeAssignment node,
+            String leftType
+    ) {
+        if (!isNumeric(leftType)) {
+            report(
+                    node,
+                    "Operator '" + node.getOperator() +
+                            "' requires numeric operand, found '" +
+                            leftType + "'."
+            );
+        }
+    }
+
+    private void validateAddAssignment(
+            NodeAssignment node,
+            String leftType,
+            String rightType
+    ) {
+        if (isString(leftType)) {
+            validateStringConcatenation(node, rightType);
+            return;
+        }
+
+        validateNumericCompoundAssignment(node, leftType, rightType, "+=");
+    }
+
+    private boolean isString(String leftType) {
+        return "String".equals(leftType);
+    }
+
+
 }

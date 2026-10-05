@@ -6,14 +6,15 @@ import com.piglatin.common.infrastructure.codegen.C3DContext;
 import com.piglatin.common.infrastructure.codegen.C3DToCConverter;
 import com.piglatin.common.infrastructure.codegen.Quadruple;
 import com.piglatin.y.domain.ast.principal.NodeProgram;
-import com.piglatin.y.domain.ast.visitor.ASTBuilder;
-import com.piglatin.y.domain.semantic.SemanticAnalyzer;
+import com.piglatin.y.domain.ast.visitor.YASTBuilder;
+import com.piglatin.y.domain.semantic.YSemanticAnalyzer;
 import com.piglatin.y.domain.semantic.SemanticContext;
 import com.piglatin.y.domain.symboltable.FunctionSymbol;
 import com.piglatin.y.infrastructure.codegen.c3d.StructLayout;
 import com.piglatin.y.infrastructure.codegen.c3d.YC3DVisitor;
 import com.piglatin.y.infrastructure.parser.generated.YLexer;
 import com.piglatin.y.infrastructure.parser.generated.YParser;
+import com.piglatin.zetariano.domain.ast.visitor.ZetarianoASTBuilder;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.ParseTree;
 
@@ -68,10 +69,10 @@ public class YCompiler implements CompilerUseCase {
                     System.currentTimeMillis() - startTime);
         }
 
-        ASTBuilder astBuilder = new ASTBuilder();
+        YASTBuilder astBuilder = new YASTBuilder();
         NodeProgram ast = (NodeProgram) astBuilder.visit(parseTree);
 
-        SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(request.getFileName());
+        YSemanticAnalyzer semanticAnalyzer = new YSemanticAnalyzer(request.getFileName());
         SemanticContext context = semanticAnalyzer.analyze(ast);
 
         if (context.getErrorReporter() != null && context.getErrorReporter().hasErrors()) {
@@ -167,9 +168,9 @@ public class YCompiler implements CompilerUseCase {
                         new com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoParser(tok);
                 parser.removeErrorListeners();
 
-                org.antlr.v4.runtime.tree.ParseTree tree = parser.program();
-                com.piglatin.zetariano.domain.ast.visitor.ASTBuilder builder =
-                        new com.piglatin.zetariano.domain.ast.visitor.ASTBuilder();
+                org.antlr.v4.runtime.tree.ParseTree tree = parser.compilationUnit();
+                ZetarianoASTBuilder builder =
+                        new ZetarianoASTBuilder();
 
                 Object built = builder.visit(tree);
                 if (built instanceof com.piglatin.zetariano.domain.ast.principal.NodeProgram program) {

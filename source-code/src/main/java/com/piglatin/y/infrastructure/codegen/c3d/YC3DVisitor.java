@@ -7,7 +7,7 @@ import com.piglatin.y.domain.ast.principal.NodeProgram;
 import com.piglatin.y.domain.ast.statements.*;
 import com.piglatin.y.domain.ast.visitor.Visitor;
 import com.piglatin.y.domain.symboltable.*;
-import com.piglatin.y.domain.types.TypeTable;
+import com.piglatin.y.domain.types.YTypeTable;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -22,8 +22,8 @@ public class YC3DVisitor implements Visitor<String> {
 
     private final C3DContext ctx;
     private final StructLayout structLayout;
-    private final SymbolTable symbolTable;
-    private final TypeTable typeTable;
+    private final YSymbolTable symbolTable;
+    private final YTypeTable typeTable;
 
     // nombre -> tipo (variables locales/parámetros)
     private final Map<String, String> locals = new HashMap<>();
@@ -43,8 +43,8 @@ public class YC3DVisitor implements Visitor<String> {
 
     public YC3DVisitor(C3DContext ctx,
                        StructLayout structLayout,
-                       SymbolTable symbolTable,
-                       TypeTable typeTable) {
+                       YSymbolTable symbolTable,
+                       YTypeTable typeTable) {
         this.ctx = ctx;
         this.structLayout = structLayout;
         this.symbolTable = symbolTable;

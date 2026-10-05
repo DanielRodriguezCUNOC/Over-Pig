@@ -6,28 +6,28 @@ import com.piglatin.zetariano.domain.ast.principal.*;
 import com.piglatin.zetariano.domain.ast.statements.*;
 import com.piglatin.zetariano.domain.ast.visitor.Visitor;
 import com.piglatin.zetariano.domain.symboltable.*;
-import com.piglatin.zetariano.domain.types.TypeTable;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
 import lombok.Getter;
 
 import java.util.List;
 
 @Getter
-public class SymbolTableBuilder implements Visitor<Void> {
+public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
 
-    private final SymbolTable symbolTable;
-    private final TypeTable typeTable;
+    private final ZetarianoSymbolTable symbolTable;
+    private final ZetarianoTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
     private int loopDepth = 0;
     private String currentClassName = null;
     private String currentMethodReturnType = null;
 
-    public SymbolTableBuilder(TypeTable typeTable, SemanticErrorReporter errorReporter) {
-        this.symbolTable = new SymbolTable();
+    public ZetarianoSymbolTableBuilder(ZetarianoTypeTable typeTable, SemanticErrorReporter errorReporter) {
+        this.symbolTable = new ZetarianoSymbolTable();
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
     }
 
-    public SymbolTableBuilder(SymbolTable symbolTable, TypeTable typeTable, SemanticErrorReporter errorReporter) {
+    public ZetarianoSymbolTableBuilder(ZetarianoSymbolTable symbolTable, ZetarianoTypeTable typeTable, SemanticErrorReporter errorReporter) {
         this.symbolTable = symbolTable;
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
@@ -178,8 +178,10 @@ public class SymbolTableBuilder implements Visitor<Void> {
             n.getInitializer().accept(this);
         }
 
+        String arrayType = n.getType() + "[]".repeat(n.getDimensions());
+
         ArraySymbol arraySymbol = new ArraySymbol(
-                n.getName(), "SERIES_" + n.getType(),
+                n.getName(), "[]" + n.getType(),
                 n.getDimensions(), n.getType(), n.getLine(), n.getColumn());
 
         if (!symbolTable.declare(n.getName(), arraySymbol)) {
@@ -202,7 +204,7 @@ public class SymbolTableBuilder implements Visitor<Void> {
     @Override
     public Void visitAssignment(NodeAssignment n) {
         if (n == null) return null;
-        if (n.getLvalue() != null) n.getLvalue().accept(this);
+        if (n.getTarget() != null) n.getTarget().accept(this);
         if (n.getExpression() != null) n.getExpression().accept(this);
         return null;
     }
@@ -386,7 +388,7 @@ public class SymbolTableBuilder implements Visitor<Void> {
     @Override
     public Void visitIndexAccess(NodeIndexAccess n) {
         if (n == null) return null;
-        if (n.getTarget() != null) n.getTarget().accept(this);
+        if (n.getArrayTarget() != null) n.getArrayTarget().accept(this);
         if (n.getIndex() != null) n.getIndex().accept(this);
         return null;
     }

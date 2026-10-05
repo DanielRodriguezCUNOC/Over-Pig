@@ -20,7 +20,7 @@ import java.util.Deque;
 /**
  * Builds a Control Flow Graph from the AST.
  */
-public class CFGBuilder implements Visitor<Void> {
+public class PigLatinCFGBuilder implements Visitor<Void> {
 
     private int blockCounter = 0;
     private BasicBlock<ASTNode> currentBlock;

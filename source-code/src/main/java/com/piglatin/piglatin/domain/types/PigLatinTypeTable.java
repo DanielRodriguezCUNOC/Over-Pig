@@ -11,12 +11,12 @@ import java.util.Set;
  */
 @Getter
 @Setter
-public class TypeTable {
+public class PigLatinTypeTable {
 
     private final Set<String> primitiveTypes;
     private final Set<String> customTypes;
 
-    public TypeTable() {
+    public PigLatinTypeTable() {
         this.primitiveTypes = new HashSet<>();
         this.customTypes = new HashSet<>();
         preloadPrimitives();
@@ -49,7 +49,7 @@ public class TypeTable {
             String base = resolved.substring(7);
             return exists(base);
         }
-        return primitiveTypes.contains(resolved);
+        return primitiveTypes.contains(resolved) || customTypes.contains(resolved);
     }
 
     public boolean isPrimitive(String typeName) {

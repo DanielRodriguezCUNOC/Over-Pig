@@ -1,5 +1,6 @@
 package com.piglatin.zetariano.domain.ast.statements;
 
+import com.piglatin.zetariano.domain.ast.enums.AssignmentOperator;
 import com.piglatin.zetariano.domain.ast.expressions.NodeExpression;
 import com.piglatin.zetariano.domain.ast.expressions.NodeLvalue;
 import com.piglatin.zetariano.domain.ast.visitor.Visitor;
@@ -9,13 +10,14 @@ import lombok.Setter;
 @Getter
 @Setter
 public class NodeAssignment extends NodeStatement {
-    private NodeLvalue lvalue;
-    private String operator;
+
+    private NodeLvalue target;
+    private AssignmentOperator operator;
     private NodeExpression expression;
 
-    public NodeAssignment(NodeLvalue lvalue, String operator, NodeExpression expression, int line, int column) {
+    public NodeAssignment(NodeLvalue target, AssignmentOperator operator, NodeExpression expression, int line, int column) {
         super(line, column);
-        this.lvalue = lvalue;
+        this.target = target;
         this.operator = operator;
         this.expression = expression;
     }

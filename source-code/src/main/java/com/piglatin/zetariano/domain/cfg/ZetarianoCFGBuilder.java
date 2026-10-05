@@ -14,7 +14,7 @@ import java.util.*;
 
 @Getter
 @Setter
-public class CFGBuilder implements Visitor<Void> {
+public class ZetarianoCFGBuilder implements Visitor<Void> {
 
     private int blockCounter;
     private BasicBlock<ASTNode> currentBlock;

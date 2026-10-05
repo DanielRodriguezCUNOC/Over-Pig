@@ -2,7 +2,7 @@ package com.piglatin.zetariano.domain.symboltable;
 
 import java.util.*;
 
-public class SymbolTable {
+public class ZetarianoSymbolTable {
     private final Deque<Map<String, Symbol>> scopes = new ArrayDeque<>();
     private final Map<String, Map<String, MethodSymbol>> classMethods = new HashMap<>();
 
@@ -10,7 +10,7 @@ public class SymbolTable {
     private final Map<String, Map<String, Symbol>> classFields = new HashMap<>();
     private final List<Symbol> allDeclaredSymbols = new ArrayList<>();
 
-    public SymbolTable() {
+    public ZetarianoSymbolTable() {
         this.scopes.push(new HashMap<>());
     }
 

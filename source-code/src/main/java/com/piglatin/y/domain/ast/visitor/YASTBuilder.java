@@ -10,7 +10,7 @@ import com.piglatin.y.infrastructure.parser.generated.YParserBaseVisitor;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ASTBuilder extends YParserBaseVisitor<ASTNode> {
+public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitProgram(YParser.ProgramContext ctx) {
@@ -269,20 +269,34 @@ public class ASTBuilder extends YParserBaseVisitor<ASTNode> {
         int line = ctx.getStart().getLine();
         int col = ctx.getStart().getCharPositionInLine();
 
-        ASTNode condition = visit(ctx.expression(0));
-        NodeBlock thenBlock = (NodeBlock) visit(ctx.block(0));
+        // Condición y bloque principal del IF
+        ASTNode condition = (ctx.expression() != null && !ctx.expression().isEmpty())
+                ? visit(ctx.expression(0)) : null;
+        NodeBlock thenBlock = (ctx.block() != null && !ctx.block().isEmpty())
+                ? (NodeBlock) visit(ctx.block(0)) : null;
 
         List<ElseIfClause> elseIfClauses = new ArrayList<>();
-        int sinoCount = ctx.SINO().size();
+        int sinoCount = ctx.SINO() != null ? ctx.SINO().size() : 0;
+
+        // Validar el tamaño máximo de expresiones disponibles para los 'sino'
+        int maxExprs = ctx.expression() != null ? ctx.expression().size() : 0;
+        int maxBlocks = ctx.block() != null ? ctx.block().size() : 0;
+
         for (int i = 0; i < sinoCount; i++) {
-            ASTNode sinoCond = visit(ctx.expression(i + 1));
-            NodeBlock sinoBlock = (NodeBlock) visit(ctx.block(i + 1));
-            elseIfClauses.add(new ElseIfClause(sinoCond, sinoBlock));
+            int exprIdx = i + 1;
+            int blockIdx = i + 1;
+
+            ASTNode sinoCond = (exprIdx < maxExprs) ? visit(ctx.expression(exprIdx)) : null;
+            NodeBlock sinoBlock = (blockIdx < maxBlocks) ? (NodeBlock) visit(ctx.block(blockIdx)) : null;
+
+            if (sinoCond != null || sinoBlock != null) {
+                elseIfClauses.add(new ElseIfClause(sinoCond, sinoBlock));
+            }
         }
 
         NodeBlock elseBlock = null;
-        if (ctx.CONTRARIO() != null) {
-            elseBlock = (NodeBlock) visit(ctx.block(ctx.block().size() - 1));
+        if (ctx.CONTRARIO() != null && maxBlocks > 0) {
+            elseBlock = (NodeBlock) visit(ctx.block(maxBlocks - 1));
         }
 
         return new NodeIf(condition, thenBlock, elseIfClauses, elseBlock, line, col);
@@ -293,21 +307,24 @@ public class ASTBuilder extends YParserBaseVisitor<ASTNode> {
         int line = ctx.getStart().getLine();
         int col = ctx.getStart().getCharPositionInLine();
 
-        ASTNode targetExpr = visit(ctx.expression(0));
+        int maxExprs = ctx.expression() != null ? ctx.expression().size() : 0;
+        int maxBlocks = ctx.block() != null ? ctx.block().size() : 0;
+
+        ASTNode targetExpr = maxExprs > 0 ? visit(ctx.expression(0)) : null;
         List<NodeChooseCase> cases = new ArrayList<>();
 
         int exprIdx = 1;
         int blockIdx = 0;
-        int casoCount = ctx.CASO().size();
+        int casoCount = ctx.CASO() != null ? ctx.CASO().size() : 0;
 
         for (int i = 0; i < casoCount; i++) {
-            ASTNode caseExpr = visit(ctx.expression(exprIdx++));
-            NodeBlock caseBlock = (NodeBlock) visit(ctx.block(blockIdx++));
+            ASTNode caseExpr = (exprIdx < maxExprs) ? visit(ctx.expression(exprIdx++)) : null;
+            NodeBlock caseBlock = (blockIdx < maxBlocks) ? (NodeBlock) visit(ctx.block(blockIdx++)) : null;
             cases.add(new NodeChooseCase(caseExpr, caseBlock, false, line, col));
         }
 
         NodeChooseCase defaultCase = null;
-        if (ctx.SIEMPRE() != null) {
+        if (ctx.SIEMPRE() != null && blockIdx < maxBlocks) {
             NodeBlock defaultBlock = (NodeBlock) visit(ctx.block(blockIdx));
             defaultCase = new NodeChooseCase(null, defaultBlock, true, line, col);
         }

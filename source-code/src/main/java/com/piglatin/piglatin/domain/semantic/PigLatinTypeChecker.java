@@ -9,7 +9,7 @@ import com.piglatin.piglatin.domain.ast.nodes.lvalue.*;
 import com.piglatin.piglatin.domain.ast.principal.*;
 import com.piglatin.piglatin.domain.ast.visitor.Visitor;
 import com.piglatin.piglatin.domain.symboltable.*;
-import com.piglatin.piglatin.domain.types.TypeTable;
+import com.piglatin.piglatin.domain.types.PigLatinTypeTable;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -32,22 +32,22 @@ import java.util.List;
  */
 @Getter
 @Setter
-public class TypeChecker implements Visitor<String> {
+public class PigLatinTypeChecker implements Visitor<String> {
 
-    private final SymbolTable symbolTable;
-    private final TypeTable typeTable;
+    private final PigLatinSymbolTable symbolTable;
+    private final PigLatinTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
     private final List<String> functionReturnStack;
-    private final ConstantFolder constantFolder;
+    private final PigLatinConstantFolder constantFolder;
     private int loopDepth = 0;
     private boolean hasImports = false;
 
-    public TypeChecker(TypeTable typeTable, SemanticErrorReporter errorReporter, SymbolTable symbolTable) {
+    public PigLatinTypeChecker(PigLatinTypeTable typeTable, SemanticErrorReporter errorReporter, PigLatinSymbolTable symbolTable) {
         this.symbolTable = symbolTable;
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
         this.functionReturnStack = new ArrayList<>();
-        this.constantFolder = new ConstantFolder(errorReporter, symbolTable);
+        this.constantFolder = new PigLatinConstantFolder(errorReporter, symbolTable);
     }
 
     // ============================================================
@@ -302,7 +302,7 @@ public class TypeChecker implements Visitor<String> {
 
     @Override
     public String visitIndexAccess(NodeIndexAccess n) {
-        String arrayType = n.getIndexExpression().accept(this);
+        String arrayType = n.getCurrentNode() != null ? n.getCurrentNode().accept(this) : "ERROR";
 
         if (arrayType != null && !arrayType.startsWith("SERIES_") && !"ERROR".equals(arrayType)) {
             errorReporter.reportError("Cannot index a non-array type '" +

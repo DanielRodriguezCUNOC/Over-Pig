@@ -1,78 +1,78 @@
 lexer grammar ZetarianoLexer;
 
-// Keywords
-PUBLIC: 'public';
-CLASS: 'class';
-INT: 'int';
-DOUBLE: 'double';
-CHAR_TYPE: 'char';
-BOOLEAN: 'boolean';
-STRING_TYPE: 'String';
-VOID: 'void';
-NEW: 'new';
-NULL: 'null';
-IF: 'if';
-ELSE: 'else';
-SWITCH: 'switch';
-CASE: 'case';
-DEFAULT: 'default';
-BREAK: 'break';
-CONTINUE: 'continue';
-RETURN: 'return';
-FOR: 'for';
-WHILE: 'while';
-DO: 'do';
-PRINTLN: 'println';
-PRINT: 'print';
-READLN: 'readln';
-TRUE: 'true';
-FALSE: 'false';
+CLASS        : 'class' ;
+PUBLIC       : 'public' ;
+PRIVATE      : 'private' ;
+STATIC       : 'static' ;
+RETURN       : 'return' ;
+IF           : 'if' ;
+ELSE         : 'else' ;
+FOR          : 'for' ;
+WHILE        : 'while' ;
+DO           : 'do' ;
+SWITCH       : 'switch' ;
+CASE         : 'case' ;
+DEFAULT      : 'default' ;
+BREAK        : 'break' ;
+CONTINUE     : 'continue' ;
+NEW          : 'new' ;
+NULL         : 'null' ;
 
-// Operators
-PLUS: '+';
-MINUS: '-';
-MULT: '*';
-DIV: '/';
-MOD: '%';
-INC: '++';
-DEC: '--';
-EQUAL: '==';
-NOTEQUAL: '!=';
-LESS: '<';
-GREATER: '>';
-LESSEQUAL: '<=';
-GREATEREQUAL: '>=';
-AND: '&&';
-OR: '||';
-NOT: '!';
-ASSIGN: '=';
-ADD_ASSIGN: '+=';
-SUB_ASSIGN: '-=';
-MULT_ASSIGN: '*=';
-QUESTION: '?';
-COLON: ':';
+INT          : 'int' ;
+CHAR         : 'char' ;
+BOOLEAN      : 'boolean' ;
+STRING       : 'String' ;
+VOID         : 'void' ;
 
-// Punctuation
-SEMICOLON: ';';
-COMMA: ',';
-DOT: '.';
-LEFT_PAREN: '(';
-RIGHT_PAREN: ')';
-LEFT_BRACE: '{';
-RIGHT_BRACE: '}';
-LEFT_BRACKET: '[';
-RIGHT_BRACKET: ']';
+TRUE         : 'true' ;
+FALSE        : 'false' ;
 
-// Literals
-INTEGER: [0-9]+;
-DECIMAL: [0-9]+ '.' [0-9]+;
-CHAR: '\'' ( '\\' . | ~['\\] ) '\'';
-STRING: '"' ( '\\' . | ~["\\] )* '"';
-ID: [a-zA-Z_][a-zA-Z0-9_]*;
+ASSIGN       : '=' ;
+ADD_ASSIGN   : '+=' ;
+SUB_ASSIGN   : '-=' ;
+MUL_ASSIGN   : '*=' ;
+DIV_ASSIGN   : '/=' ;
+MOD_ASSIGN   : '%=' ;
 
-// Comments
-LINE_COMMENT: '//' ~[\r\n]* -> skip;
-BLOCK_COMMENT: '/*' .*? '*/' -> skip;
+PLUS         : '+' ;
+MINUS        : '-' ;
+STAR         : '*' ;
+SLASH        : '/' ;
+PERCENT      : '%' ;
 
-// Ignore
-WS: [ \t\r\n]+ -> skip;
+INC          : '++' ;
+DEC          : '--' ;
+
+EQUAL        : '==' ;
+NOTEQUAL     : '!=' ;
+LE           : '<=' ;
+GE           : '>=' ;
+LT           : '<' ;
+GT           : '>' ;
+
+AND          : '&&' ;
+OR           : '||' ;
+NOT          : '!' ;
+
+QUESTION     : '?' ;
+COLON        : ':' ;
+
+LPAREN       : '(' ;
+RPAREN       : ')' ;
+LBRACK       : '[' ;
+RBRACK       : ']' ;
+LBRACE       : '{' ;
+RBRACE       : '}' ;
+SEMI         : ';' ;
+COMMA        : ',' ;
+DOT          : '.' ;
+
+INT_LITERAL    : [0-9]+ ;
+CHAR_LITERAL   : '\'' ( '\\' [btnfr"'\\] | ~['\\\r\n] ) '\'' ;
+STRING_LITERAL : '"' ( '\\' [btnfr"'\\] | ~["\\\r\n] )* '"' ;
+
+IDENTIFIER     : [a-zA-R_] [a-zA-R0-9_]* ;
+
+WS             : [ \t\r\n]+ -> skip ;
+LINE_COMMENT   : '//' ~[\r\n]* -> skip ;
+BLOCK_COMMENT  : '/*' .*? '*/' -> skip ;
