@@ -98,7 +98,7 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
     // ============================================================
 
     @Override
-    public ASTNode visitDeclaration(LatinParser.DeclarationContext ctx) {
+    public ASTNode visitDeclStandard(LatinParser.DeclStandardContext ctx) {
         String id = ctx.ID().getText();
         String type = ctx.type() != null ? extractType(ctx.type()) : null;
         ASTNode initializer = ctx.expression() != null
@@ -107,6 +107,27 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
                         ctx.expression().getText(),
                         ctx.getStart().getLine(),
                         ctx.getStart().getCharPositionInLine())
+                : null;
+
+        return new NodeVariableDeclaration(
+                id,
+                type,
+                initializer,
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
+    }
+
+    @Override
+    public ASTNode visitDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx) {
+        String id = ctx.ID().getText();
+        String type = ctx.type() != null ? extractType(ctx.type()) : null;
+
+        ASTNode initializer = ctx.expression() != null
+                ? normalizeInitializerLiteral(
+                visit(ctx.expression()),
+                ctx.expression().getText(),
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine())
                 : null;
 
         return new NodeVariableDeclaration(
@@ -407,20 +428,34 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitLvalue(LatinParser.LvalueContext ctx) {
-        NodeLvalue lvalue = new NodeLvalue(
-                ctx.ID().getText(),
-                new ArrayList<>(),
+        String baseIdentifier = ctx.ID().getText();
+        ASTNode current = new NodeIdentifier(
+                baseIdentifier,
                 ctx.getStart().getLine(),
                 ctx.getStart().getCharPositionInLine());
 
-        for (LatinParser.LvalueSuffixContext suffixCtx : ctx.lvalueSuffix()) {
-            ASTNode suffix = visit(suffixCtx);
-            if (suffix != null) {
-                lvalue.addSuffix(suffix);
+        // Procesar sufijos como .campo o [index]
+        if (ctx.lvalueSuffix() != null && !ctx.lvalueSuffix().isEmpty()) {
+            for (LatinParser.LvalueSuffixContext suffixCtx : ctx.lvalueSuffix()) {
+                if (suffixCtx instanceof LatinParser.FieldAccessContext fieldCtx) {
+                    String fieldName = fieldCtx.ID().getText();
+                    current = new NodeFieldAccess(
+                            current,
+                            fieldName,
+                            fieldCtx.getStart().getLine(),
+                            fieldCtx.getStart().getCharPositionInLine());
+                } else if (suffixCtx instanceof LatinParser.IndexAccessContext indexCtx) {
+                    ASTNode indexExpr = visit(indexCtx.expression());
+                    current = new NodeIndexAccess(
+                            current,
+                            indexExpr,
+                            indexCtx.getStart().getLine(),
+                            indexCtx.getStart().getCharPositionInLine());
+                }
             }
         }
 
-        return lvalue;
+        return current;
     }
 
     @Override
@@ -511,25 +546,39 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
     //* ============================================================
     //* NEW INSTANCE
     //* ============================================================
-
     @Override
-    public ASTNode visitNewInstance (LatinParser.NewInstanceContext  ctx) {
+    public ASTNode visitNewInstance(LatinParser.NewInstanceContext ctx) {
         String className = ctx.ID().getText();
-        List<ASTNode> arguments = new ArrayList<>();
 
-        if (ctx.argumentList() != null){
-            for (LatinParser.ExpressionContext argCtx : ctx.argumentList().expression()) {
-                arguments.add(visit(argCtx));
+        // Extraer argumentos si existen
+        List<ASTNode> arguments = new ArrayList<>();
+        if (ctx.argumentList() != null && ctx.argumentList().expression() != null) {
+            for (LatinParser.ExpressionContext exprCtx : ctx.argumentList().expression()) {
+                arguments.add(visit(exprCtx));
             }
         }
 
-        return new NodeNewInstance( className, arguments, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+        String explicitType = ctx.type() != null ? extractType(ctx.type()) : className;
+
+        return new NodeNewInstance(
+                className,
+                arguments,
+                explicitType,
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
+    }
+
+    @Override
+    public ASTNode visitExprNull(LatinParser.ExprNullContext ctx) {
+        return new NodeNullLiteral(
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
     }
 
     @Override
     public ASTNode visitCompNot (LatinParser.CompNotContext ctx) {
         ASTNode operand = visit (ctx.comparisonExpression());
-        return new NodeUnaryOperation("!", operand, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+        return new NodeUnaryOperation("!", operand, false, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
     }
 
     @Override
@@ -607,6 +656,7 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
         return new NodeUnaryOperation(
                 op,
                 operand,
+                false,
                 ctx.getStart().getLine(),
                 ctx.getStart().getCharPositionInLine());
     }
@@ -622,24 +672,67 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
     }
 
     @Override
-    public ASTNode visitPrimaryNumId(
-            LatinParser.PrimaryNumIdContext ctx) {
-       String id = ctx.ID().getText();
-       NodeIdentifier base = new NodeIdentifier(id, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+    public ASTNode visitPrimaryNumId(LatinParser.PrimaryNumIdContext ctx) {
+        String id = ctx.ID().getText();
+        ASTNode current = new NodeIdentifier(
+                id,
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
 
-       //* Handle postfix ++ or --
-       ASTNode result = buildAccessChain(base, ctx.attributeAccess());
+        if (ctx.attributeAccess() != null && !ctx.attributeAccess().isEmpty()) {
+            for (LatinParser.AttributeAccessContext attrCtx : ctx.attributeAccess()) {
+                current = processAttributeAccess(current, attrCtx);
+            }
+        }
 
-       //* Check for postfix increment/decrement
         if (ctx.ADD() != null) {
-            return new NodeIncrementDecrement(result, "++", true,
-                    ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+            return new NodeUnaryOperation("++", current, true, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+        } else if (ctx.SUB() != null) {
+            return new NodeUnaryOperation("--", current, true, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
         }
-        if (ctx.SUB() != null) {
-            return new NodeIncrementDecrement(result, "--", true,
-                    ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+
+        return current;
+    }
+
+    @Override
+    public ASTNode visitStringPrimId(LatinParser.StringPrimIdContext ctx) {
+        String id = ctx.ID().getText();
+        ASTNode current = new NodeIdentifier(
+                id,
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
+
+        if (ctx.attributeAccess() != null && !ctx.attributeAccess().isEmpty()) {
+            for (LatinParser.AttributeAccessContext attrCtx : ctx.attributeAccess()) {
+                current = processAttributeAccess(current, attrCtx);
+            }
         }
-        return result;
+
+        return current;
+    }
+
+    private ASTNode processAttributeAccess(ASTNode target, LatinParser.AttributeAccessContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+
+        if (ctx instanceof LatinParser.AttrFieldContext fieldCtx) {
+            return new NodeFieldAccess(target, fieldCtx.ID().getText(), line, col);
+
+        } else if (ctx instanceof LatinParser.AttrIndexContext indexCtx) {
+            ASTNode indexExpr = visit(indexCtx.expression());
+            return new NodeIndexAccess(target, indexExpr, line, col);
+
+        } else if (ctx instanceof LatinParser.AttrCallContext callCtx) {
+            List<ASTNode> args = new ArrayList<>();
+            if (callCtx.argumentList() != null && callCtx.argumentList().expression() != null) {
+                for (LatinParser.ExpressionContext exprCtx : callCtx.argumentList().expression()) {
+                    args.add(visit(exprCtx));
+                }
+            }
+            return new NodeMethodCall(target, args, line, col);
+        }
+
+        return target;
     }
 
     @Override
@@ -712,12 +805,6 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
         String text = ctx.CHAR().getText();
         char value = text.length() >= 3 ? text.charAt(1) : '\0';
         return new NodeCharLiteral(value, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
-    }
-
-    @Override
-    public ASTNode visitStringPrimId (LatinParser.StringPrimIdContext ctx) {
-        NodeIdentifier base = new NodeIdentifier(ctx.ID().getText(), ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
-        return buildAccessChain(base, ctx.attributeAccess());
     }
 
     // ============================================================

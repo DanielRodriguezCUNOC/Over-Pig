@@ -1,5 +1,5 @@
-// Generated from LatinLexer.g4 by ANTLR 4.13.2
-package com.piglatin.piglatin.infrastructure.parser.generated;
+// Generated from /home/clare/Documentos/SS 2026/COMPI 2/PROYECTOS/PROYECTO 2/Over-Pig/source-code/src/main/java/com/piglatin/piglatin/infrastructure/parser/LatinLexer.g4 by ANTLR 4.13.2
+package com.piglatin.piglatin.infrastructure.parser;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Token;

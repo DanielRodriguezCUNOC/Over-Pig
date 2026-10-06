@@ -353,6 +353,8 @@ private boolean hasImports = false;
         return null;
     }
 
+
+
     @Override
     public Void visitFunctionCall(NodeFunctionCall n) {
         if (n.getCurrentNode() != null) {

@@ -44,4 +44,5 @@ public interface Visitor<T> {
     T visitStringLiteral(NodeStringLiteral n);
     T visitBooleanLiteral(NodeBooleanLiteral n);
     T visitNullLiteral(NodeNullLiteral n);
+    T visitThis(NodeThis n);
 }

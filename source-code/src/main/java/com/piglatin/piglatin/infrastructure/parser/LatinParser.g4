@@ -47,7 +47,8 @@ instruction
 
 // Variable Declaration
 declaration
-    : ESTO ID COLON (type (expression)? | expression) SEMICOLON?
+    : ESTO ID COLON type (expression)? SEMICOLON?                       #DeclStandard
+    | ESTO ID COLON expression COLON type SEMICOLON?                    #DeclExplicitType
     ;
 
 arrayDeclaration
@@ -108,7 +109,7 @@ jumpStatement
 
 // Object instantiation
 newInstance
-    : NOVUS ID LEFT_PAREN argumentList? RIGHT_PAREN
+    : NOVUS ID LEFT_PAREN argumentList? RIGHT_PAREN (COLON type)?
     ;
 
 // Read statement
@@ -159,7 +160,8 @@ argumentList
 
 // Expressions
 expression
-    : booleanExpression                              #ExprBoolean
+    : NULL                                           #ExprNull
+    | booleanExpression                              #ExprBoolean
     | numericExpression                              #ExprNumeric
     | stringExpression                               #ExprString
     | arrayLiteral                                   #ExprArrayLiteral

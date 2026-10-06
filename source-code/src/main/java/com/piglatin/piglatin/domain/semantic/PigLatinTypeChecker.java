@@ -172,6 +172,7 @@ public class PigLatinTypeChecker implements Visitor<String> {
         return null;
     }
 
+
     @Override
     public String visitIf(NodeIf n) {
         if (n.getCondition() != null) {

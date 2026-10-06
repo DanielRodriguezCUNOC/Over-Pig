@@ -22,6 +22,8 @@ public class NodeNewInstance extends ASTNode {
     //* List of arguments passed to the constructor
     private List<ASTNode> arguments;
 
+    private String explicitType;
+
     public NodeNewInstance() {
         this(null, new ArrayList<>(), 0, 0);
     }
@@ -34,6 +36,13 @@ public class NodeNewInstance extends ASTNode {
         super(line, column);
         this.className = className;
         this.arguments = arguments != null ? arguments : new ArrayList<>();
+    }
+
+    public NodeNewInstance(String className, List<ASTNode> arguments, String explicitType, int line, int charPositionInLine) {
+        super(line, charPositionInLine);
+        this.className = className;
+        this.arguments = arguments != null ? arguments : new ArrayList<>();
+        this.explicitType = explicitType;
     }
 
     public void addArgument(ASTNode argument) {

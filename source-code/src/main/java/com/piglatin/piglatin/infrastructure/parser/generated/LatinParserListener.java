@@ -214,15 +214,29 @@ public interface LatinParserListener extends ParseTreeListener {
 	 */
 	void exitInstructionExpression(LatinParser.InstructionExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LatinParser#declaration}.
+	 * Enter a parse tree produced by the {@code DeclStandard}
+	 * labeled alternative in {@link LatinParser#declaration}.
 	 * @param ctx the parse tree
 	 */
-	void enterDeclaration(LatinParser.DeclarationContext ctx);
+	void enterDeclStandard(LatinParser.DeclStandardContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LatinParser#declaration}.
+	 * Exit a parse tree produced by the {@code DeclStandard}
+	 * labeled alternative in {@link LatinParser#declaration}.
 	 * @param ctx the parse tree
 	 */
-	void exitDeclaration(LatinParser.DeclarationContext ctx);
+	void exitDeclStandard(LatinParser.DeclStandardContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code DeclExplicitType}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void enterDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code DeclExplicitType}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void exitDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LatinParser#arrayDeclaration}.
 	 * @param ctx the parse tree
@@ -591,6 +605,18 @@ public interface LatinParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitArgumentList(LatinParser.ArgumentListContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code ExprNull}
+	 * labeled alternative in {@link LatinParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterExprNull(LatinParser.ExprNullContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ExprNull}
+	 * labeled alternative in {@link LatinParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitExprNull(LatinParser.ExprNullContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code ExprBoolean}
 	 * labeled alternative in {@link LatinParser#expression}.

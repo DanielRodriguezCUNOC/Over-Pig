@@ -1,5 +1,6 @@
 package com.piglatin.zetariano.domain.ast.visitor;
 
+import com.piglatin.zetariano.domain.ast.enums.AccessModifier;
 import com.piglatin.zetariano.domain.ast.enums.AssignmentOperator;
 import com.piglatin.zetariano.domain.ast.principal.*;
 import com.piglatin.zetariano.domain.ast.statements.*;
@@ -31,16 +32,17 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
     @Override
     public ASTNode visitClassDeclaration(ZetarianoParser.ClassDeclarationContext ctx) {
         if (ctx == null) return null;
-        boolean isPublic = (ctx.PUBLIC() != null);
-        String name = ctx.IDENTIFIER().getText();
-        List<ASTNode> members = new ArrayList<>();
+        AccessModifier modifier = parseAccessModifier(ctx.accessModifier());
+        String name = ctx.IDENTIFIER(0).getText();
 
-        if (ctx.classBodyMember() != null) {
-            for (ZetarianoParser.ClassBodyMemberContext memberCtx : ctx.classBodyMember()) {
+        String superClass = (ctx.EXTENDS() != null && ctx.IDENTIFIER().size() > 1) ? ctx.IDENTIFIER(1).getText() : null;
+        List<ASTNode> members = new ArrayList<>();
+        if (ctx.classBodyMember() != null){
+            for (ZetarianoParser.ClassBodyMemberContext memberCtx : ctx.classBodyMember()){
                 members.add(visit(memberCtx));
             }
         }
-        return new NodeClassDeclaration(isPublic, name, members, getLine(ctx), getColumn(ctx));
+        return new NodeClassDeclaration(modifier, name, superClass, members, getLine(ctx), getColumn(ctx));
     }
 
     @Override
@@ -61,36 +63,71 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
     @Override
     public ASTNode visitFieldDeclaration(ZetarianoParser.FieldDeclarationContext ctx) {
         if (ctx == null) return null;
+        AccessModifier modifier = parseAccessModifier(ctx.accessModifier());
         String type = ctx.type().getText();
         String name = ctx.IDENTIFIER().getText();
         NodeExpression initializer = ctx.expression() != null ? asExpression(visit(ctx.expression())) : null;
         boolean isArray = ctx.type().LBRACK() != null && !ctx.type().LBRACK().isEmpty();
         int dimensions = isArray ? ctx.type().LBRACK().size() : 0;
 
-        return new NodeFieldDeclaration(type, name, initializer, isArray, dimensions, getLine(ctx), getColumn(ctx));
+        return new NodeFieldDeclaration(modifier, type, name, initializer, isArray, dimensions, getLine(ctx), getColumn(ctx));
     }
 
     @Override
     public ASTNode visitMethodDeclaration(ZetarianoParser.MethodDeclarationContext ctx) {
         if (ctx == null) return null;
-        boolean isPublic = (ctx.PUBLIC() != null);
+        boolean isOverride = (ctx.OVERRIDE() != null);
+        AccessModifier modifier = parseAccessModifier(ctx.accessModifier());
         String returnType = ctx.typeOrVoid().getText();
         String name = ctx.IDENTIFIER().getText();
         List<NodeParameter> parameters = buildParameters(ctx.parameterList());
         NodeBlock body = asBlock(visit(ctx.block()));
 
-        return new NodeMethodDeclaration(isPublic, returnType, name, parameters, body, getLine(ctx), getColumn(ctx));
+        return new NodeMethodDeclaration(isOverride, modifier, returnType, name, parameters, body, getLine(ctx), getColumn(ctx));
     }
 
     @Override
     public ASTNode visitConstructorDeclaration(ZetarianoParser.ConstructorDeclarationContext ctx) {
         if (ctx == null) return null;
-        boolean isPublic = (ctx.PUBLIC() != null);
+        AccessModifier modifier = parseAccessModifier(ctx.accessModifier());
         String name = ctx.IDENTIFIER().getText();
         List<NodeParameter> parameters = buildParameters(ctx.parameterList());
         NodeBlock body = asBlock(visit(ctx.block()));
 
-        return new NodeConstructorDeclaration(isPublic, name, parameters, body, getLine(ctx), getColumn(ctx));
+        return new NodeConstructorDeclaration(modifier, name, parameters, body, getLine(ctx), getColumn(ctx));
+    }
+
+
+    @Override
+    public ASTNode visitThisPrimary(ZetarianoParser.ThisPrimaryContext ctx) {
+        return new NodeThis(getLine(ctx), getColumn(ctx));
+    }
+
+    @Override
+    public ASTNode visitTarget (ZetarianoParser.TargetContext ctx) {
+        NodeLvalue current;
+        int idIdx = 0;
+
+        //* Handle the root of the target if are 'IDENTIFIER' or 'this'
+        if (ctx.THIS() != null) {
+            current = new NodeThis(getLine(ctx), getColumn(ctx));
+        } else {
+            current = new NodeIdentifier(ctx.IDENTIFIER(idIdx++).getText(), getLine(ctx), getColumn(ctx));
+        }
+
+        int exprIdx = 0;
+
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            String text = ctx.getChild(i).getText();
+            if (text.equals("[")) {
+                NodeExpression idx = asExpression(visit(ctx.expression(exprIdx++)));
+                current = new NodeIndexAccess(current, idx, getLine(ctx), getColumn(ctx));
+            } else if (text.equals(".")) {
+                String fieldName = ctx.IDENTIFIER(idIdx++).getText();
+                current = new NodeFieldAccess(current, fieldName, getLine(ctx), getColumn(ctx));
+            }
+        }
+        return current;
     }
 
     @Override
@@ -295,27 +332,6 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
     }
 
     @Override
-    public ASTNode visitTarget(ZetarianoParser.TargetContext ctx) {
-        NodeLvalue current = new NodeIdentifier(ctx.IDENTIFIER(0).getText(), getLine(ctx), getColumn(ctx));
-
-        //* Manejar accesos a arreglo iniciales: id[e1][e2]
-        int exprIdx = 0;
-        int idIdx = 1;
-
-        for (int i = 0; i < ctx.getChildCount(); i++) {
-            String text = ctx.getChild(i).getText();
-            if (text.equals("[")) {
-                NodeExpression idx = asExpression(visit(ctx.expression(exprIdx++)));
-                current = new NodeIndexAccess(current, idx, getLine(ctx), getColumn(ctx));
-            } else if (text.equals(".")) {
-                String fieldName = ctx.IDENTIFIER(idIdx++).getText();
-                current = new NodeFieldAccess(current, fieldName, getLine(ctx), getColumn(ctx));
-            }
-        }
-        return current;
-    }
-
-    @Override
     public ASTNode visitLiteral(ZetarianoParser.LiteralContext ctx) {
         if (ctx == null) return null;
         if (ctx.INT_LITERAL() != null) return new NodeIntegerLiteral(Integer.parseInt(ctx.INT_LITERAL().getText()), getLine(ctx), getColumn(ctx));
@@ -399,5 +415,13 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
 
     private int getColumn(ParserRuleContext ctx) {
         return (ctx != null && ctx.getStart() != null) ? ctx.getStart().getCharPositionInLine() : 0;
+    }
+
+    private AccessModifier parseAccessModifier(ZetarianoParser.AccessModifierContext ctx) {
+        if (ctx == null) return AccessModifier.DEFAULT;
+        if (ctx.PUBLIC() != null) return AccessModifier.PUBLIC;
+        if (ctx.PRIVATE() != null) return AccessModifier.PRIVATE;
+        if (ctx.PROTECTED() != null) return AccessModifier.PROTECTED;
+        return AccessModifier.DEFAULT;
     }
 }

@@ -774,6 +774,18 @@ public interface ZetarianoParserListener extends ParseTreeListener {
 	 */
 	void exitVariableOrField(ZetarianoParser.VariableOrFieldContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code ThisPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 */
+	void enterThisPrimary(ZetarianoParser.ThisPrimaryContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ThisPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 */
+	void exitThisPrimary(ZetarianoParser.ThisPrimaryContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code MethodCallSuffix}
 	 * labeled alternative in {@link ZetarianoParser#primarySuffix}.
 	 * @param ctx the parse tree
@@ -844,40 +856,6 @@ public interface ZetarianoParserListener extends ParseTreeListener {
 	 */
 	void exitArrayDimensions(ZetarianoParser.ArrayDimensionsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link ZetarianoParser#methodCall}.
-	 * @param ctx the parse tree
-	 */
-	void enterMethodCall(ZetarianoParser.MethodCallContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link ZetarianoParser#methodCall}.
-	 * @param ctx the parse tree
-	 */
-	void exitMethodCall(ZetarianoParser.MethodCallContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code ArrayAccessing}
-	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
-	 * @param ctx the parse tree
-	 */
-	void enterArrayAccessing(ZetarianoParser.ArrayAccessingContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code ArrayAccessing}
-	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
-	 * @param ctx the parse tree
-	 */
-	void exitArrayAccessing(ZetarianoParser.ArrayAccessingContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code FieldAccessing}
-	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
-	 * @param ctx the parse tree
-	 */
-	void enterFieldAccessing(ZetarianoParser.FieldAccessingContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code FieldAccessing}
-	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
-	 * @param ctx the parse tree
-	 */
-	void exitFieldAccessing(ZetarianoParser.FieldAccessingContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link ZetarianoParser#expressionList}.
 	 * @param ctx the parse tree
 	 */
@@ -897,4 +875,14 @@ public interface ZetarianoParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitLiteral(ZetarianoParser.LiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link ZetarianoParser#accessModifier}.
+	 * @param ctx the parse tree
+	 */
+	void enterAccessModifier(ZetarianoParser.AccessModifierContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ZetarianoParser#accessModifier}.
+	 * @param ctx the parse tree
+	 */
+	void exitAccessModifier(ZetarianoParser.AccessModifierContext ctx);
 }

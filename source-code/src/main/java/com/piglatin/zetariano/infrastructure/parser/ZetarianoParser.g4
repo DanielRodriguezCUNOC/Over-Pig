@@ -7,7 +7,7 @@ compilationUnit
     ;
 
 classDeclaration
-    : PUBLIC? CLASS IDENTIFIER LBRACE classBodyMember* RBRACE
+    : accessModifier? CLASS IDENTIFIER (EXTENDS IDENTIFIER)? LBRACE classBodyMember* RBRACE
     ;
 
 classBodyMember
@@ -17,15 +17,15 @@ classBodyMember
     ;
 
 fieldDeclaration
-    : type IDENTIFIER (ASSIGN expression)? SEMI
+    : accessModifier? type IDENTIFIER (ASSIGN expression)? SEMI
     ;
 
 constructorDeclaration
-    : PUBLIC? IDENTIFIER LPAREN parameterList? RPAREN block
+    : accessModifier? IDENTIFIER LPAREN parameterList? RPAREN block
     ;
 
 methodDeclaration
-    : PUBLIC? typeOrVoid IDENTIFIER LPAREN parameterList? RPAREN block
+    : OVERRIDE? accessModifier? typeOrVoid IDENTIFIER LPAREN parameterList? RPAREN block
     ;
 
 parameterList
@@ -91,7 +91,7 @@ assignmentOperator
     ;
 
 target
-    : IDENTIFIER (LBRACK expression RBRACK)* (DOT IDENTIFIER (LBRACK expression RBRACK)*)*
+    : (THIS | IDENTIFIER) (LBRACK expression RBRACK)* (DOT IDENTIFIER (LBRACK expression RBRACK)*)*
     ;
 
 expressionStatement
@@ -205,6 +205,7 @@ primaryCore
     | allocationExpression                              #AllocationExpressionPrimary
     | IDENTIFIER LPAREN expressionList? RPAREN          #DirectMethodCall
     | IDENTIFIER                                        #VariableOrField
+    | THIS                                              #ThisPrimary
     ;
 
 primarySuffix
@@ -222,15 +223,6 @@ arrayDimensions
     : (LBRACK expression RBRACK)+ (LBRACK RBRACK)*
     ;
 
-methodCall
-    : (primary DOT)? IDENTIFIER LPAREN expressionList? RPAREN
-    ;
-
-fieldAccess
-    : primary LBRACK expression RBRACK                                      #ArrayAccessing
-    | primary DOT IDENTIFIER                                                #FieldAccessing
-    ;
-
 expressionList
     : expression (COMMA expression)*
     ;
@@ -242,4 +234,10 @@ literal
     | TRUE
     | FALSE
     | NULL
+    ;
+
+accessModifier
+    : PUBLIC
+    | PRIVATE
+    | PROTECTED
     ;

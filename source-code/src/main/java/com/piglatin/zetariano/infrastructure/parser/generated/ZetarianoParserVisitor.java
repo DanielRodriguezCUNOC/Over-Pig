@@ -464,6 +464,13 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitVariableOrField(ZetarianoParser.VariableOrFieldContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code ThisPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitThisPrimary(ZetarianoParser.ThisPrimaryContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code MethodCallSuffix}
 	 * labeled alternative in {@link ZetarianoParser#primarySuffix}.
 	 * @param ctx the parse tree
@@ -505,26 +512,6 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitArrayDimensions(ZetarianoParser.ArrayDimensionsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link ZetarianoParser#methodCall}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitMethodCall(ZetarianoParser.MethodCallContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code ArrayAccessing}
-	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitArrayAccessing(ZetarianoParser.ArrayAccessingContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code FieldAccessing}
-	 * labeled alternative in {@link ZetarianoParser#fieldAccess}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFieldAccessing(ZetarianoParser.FieldAccessingContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#expressionList}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -536,4 +523,10 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitLiteral(ZetarianoParser.LiteralContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link ZetarianoParser#accessModifier}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAccessModifier(ZetarianoParser.AccessModifierContext ctx);
 }
