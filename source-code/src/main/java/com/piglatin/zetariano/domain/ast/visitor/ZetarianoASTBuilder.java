@@ -19,14 +19,14 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
     @Override
     public ASTNode visitCompilationUnit(ZetarianoParser.CompilationUnitContext ctx) {
         if (ctx == null) return null;
-        List<ASTNode> classes = new ArrayList<>();
+        List<NodeClassDeclaration> classes = new ArrayList<>();
         if (ctx.classDeclaration() != null) {
             for (ZetarianoParser.ClassDeclarationContext classCtx : ctx.classDeclaration()) {
-                classes.add(visit(classCtx));
+                ASTNode node = visit(classCtx);
+                if (node instanceof NodeClassDeclaration classDecl) classes.add(classDecl);
             }
         }
-        NodeClassDeclaration mainClass = !classes.isEmpty() ? (NodeClassDeclaration) classes.get(0) : null;
-        return new NodeProgram(mainClass, getLine(ctx), getColumn(ctx));
+        return new NodeProgram(classes, getLine(ctx), getColumn(ctx));
     }
 
     @Override

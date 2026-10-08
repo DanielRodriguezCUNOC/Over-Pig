@@ -1,5 +1,6 @@
 package com.piglatin.zetariano.domain.semantic;
 
+import com.piglatin.zetariano.domain.ast.enums.AccessModifier;
 import com.piglatin.zetariano.domain.ast.expressions.*;
 import com.piglatin.zetariano.domain.ast.expressions.literals.*;
 import com.piglatin.zetariano.domain.ast.principal.*;
@@ -25,22 +26,21 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         this.symbolTable = symbolTable;
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
-        this.constantFolder = new ZetarianoConstantFolder(errorReporter);
+        this.constantFolder = new ZetarianoConstantFolder(errorReporter, symbolTable);
         this.currentClassName = null;
         this.currentMethodReturnType = null;
     }
 
-    // ============================================================
-    // PROGRAM & DECLARATIONS
-    // ============================================================
 
     @Override
     public String visitProgram(NodeProgram n) {
         if (n == null) return null;
 
         symbolTable.pushScope("global");
-        if (n.getClassDeclaration() != null) {
-            n.getClassDeclaration().accept(this);
+        if (n.getClasses() != null) {
+            for (NodeClassDeclaration cls : n.getClasses()) {
+                if (cls != null) cls.accept(this);
+            }
         }
         symbolTable.popScope();
         return null;
@@ -670,6 +670,9 @@ public class ZetarianoTypeChecker implements Visitor<String> {
             return null;
         }
 
+        //* Validate modifier of the field
+        checkAccess(fieldSym.getAccessModifier(), targetType, n, n.getFieldName());
+
         if (fieldSym instanceof VariableSymbol vs) {
             return vs.getType();
         } else if (fieldSym instanceof ArraySymbol as) {
@@ -741,6 +744,9 @@ public class ZetarianoTypeChecker implements Visitor<String> {
             }
             return null;
         }
+
+        //* Validate access modifier of the method
+        checkAccess(method.getAccessModifier(), targetClass, n, n.getMethodName());
 
         List<String> paramTypes = method.getParameterTypes();
         for (int i = 0; i < arity; i++) {
@@ -856,6 +862,16 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         return "null";
     }
 
+    @Override
+    public String visitThis(NodeThis n) {
+        if (n == null) return null;
+        if (currentClassName == null) {
+            errorReporter.reportError("'this' cannot be used outside of a class context.", n);
+            return null;
+        }
+        return currentClassName;
+    }
+
     // ============================================================
     // TYPE SYSTEM HELPERS
     // ============================================================
@@ -879,6 +895,11 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         }
         if ("empty_array".equals(sourceType)) {
             return targetType.endsWith("[]");
+        }
+
+        //* Validate subtyped and polymorphic
+        if (typeTable.isUserDefined(targetType) && typeTable.isUserDefined(sourceType)) {
+            return typeTable.isSubtypeOf(sourceType, targetType);
         }
         return false;
     }
@@ -1026,5 +1047,35 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         return "String".equals(leftType);
     }
 
+    private boolean checkAccess(AccessModifier modifier, String declaringClass, ASTNode node, String memberName) {
+        if (modifier == null || modifier == AccessModifier.PUBLIC) {
+            return true;
+        }
+
+        if (currentClassName == null) {
+            errorReporter.reportError(
+                    "Cannot access member '" + memberName + "' from outside of a class context.", node);
+            return false;
+        }
+
+        if (modifier == AccessModifier.PRIVATE) {
+            if (!currentClassName.equals(declaringClass)) {
+                errorReporter.reportError(
+                        "Member '" + memberName + "' in class '" + declaringClass +
+                                "' has private access and cannot be accessed from class '" + currentClassName + "'.", node);
+                return false;
+            }
+        } else if (modifier == AccessModifier.PROTECTED) {
+            boolean isSameClass = currentClassName.equals(declaringClass);
+            boolean isSubclass = typeTable.isSubtypeOf(currentClassName, declaringClass);
+            if (!isSameClass && !isSubclass) {
+                errorReporter.reportError(
+                        "Member '" + memberName + "' in class '" + declaringClass +
+                                "' has protected access and cannot be accessed from class '" + currentClassName + "'.", node);
+                return false;
+            }
+        }
+        return true;
+    }
 
 }

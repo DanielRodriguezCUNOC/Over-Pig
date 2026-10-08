@@ -52,41 +52,23 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
     public Void visitClassDeclaration(NodeClassDeclaration n) {
         if (n == null) return null;
 
-        String className = n.getName();
+        //* Validate Heritage
+        validateHeritage(n);
 
-        ClassSymbol classSymbol = new ClassSymbol(className, n.getLine(), n.getColumn());
-        if (!symbolTable.declare(className, classSymbol)) {
-            errorReporter.reportError(
-                    "Class '" + className + "' is already declared.",
-                    n.getLine(), n.getColumn());
-        }else{
-            typeTable.registerClass(className);
+        if (!registerClass(n)) return null;
+
+        symbolTable.pushScope("class_" + n.getName());
+        currentClassName = n.getName();
+
+        //* Create and register the class symbol with his modifier and superclass
+        try {
+            registerClassMembers(n);
+            analyzeClassBodies(n);
+        } finally {
+            symbolTable.popScope();
+            currentClassName = null;
         }
 
-        symbolTable.pushScope("class_" + className);
-        this.currentClassName = className;
-
-        for (ASTNode member : n.getMembers()) {
-            if (member instanceof NodeMethodDeclaration m) {
-                registerMethodSignature(m);
-            } else if (member instanceof NodeConstructorDeclaration c) {
-                registerConstructorSignature(c);
-            } else if (member instanceof NodeFieldDeclaration f) {
-                registerField(f);
-            }
-        }
-
-        for (ASTNode member : n.getMembers()) {
-            if (member instanceof NodeMethodDeclaration m) {
-                analyzeMethodBody(m);
-            } else if (member instanceof NodeConstructorDeclaration c) {
-                analyzeConstructorBody(c);
-            }
-            // Los campos ya fueron registrados.
-        }
-
-        symbolTable.popScope();
-        this.currentClassName = null;
         return null;
     }
 
@@ -463,16 +445,27 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
     @Override public Void visitBooleanLiteral(NodeBooleanLiteral n) { return null; }
     @Override public Void visitNullLiteral(NodeNullLiteral n)       { return null; }
 
+    @Override
+    public Void visitThis(NodeThis n) {
+        if (n == null) return null;
+        if (currentClassName == null) {
+            errorReporter.reportError(
+                    "Keyword 'this' can only be used inside a class context.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
 
     private void registerField(NodeFieldDeclaration f) {
         if (!typeTable.exists(f.getType()) || typeTable.isVoid(f.getType())) {
             errorReporter.reportError(
                     "Invalid field type '" + f.getType() + "'.",
                     f.getLine(), f.getColumn());
-            // NO return — seguimos declarando para evitar cascada
         }
         VariableSymbol field = new VariableSymbol(
-                f.getName(), f.getType(), f.getLine(), f.getColumn());
+                f.getModifier(), f.getName(), f.getType(), f.getLine(), f.getColumn());
+
         if (!symbolTable.declare(f.getName(), field)) {
             errorReporter.reportError(
                     "Field '" + f.getName() + "' is already declared.",
@@ -480,9 +473,23 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
         }
     }
 
-    private void registerMethodSignature(NodeMethodDeclaration m) {
+    private void registerMethodSignature(NodeMethodDeclaration m, String superClass) {
+
+        //* Validate @Override annotation
+        if (m.isOverride()) {
+            if (superClass == null){
+                errorReporter.reportError(
+                        "Method '" + m.getName() + "' is marked with @Override but the class '" + currentClassName + "' does not have a superclass.",
+                        m.getLine(), m.getColumn());
+            } else if (!symbolTable.existsMethod(superClass, m.getName())) {
+                errorReporter.reportError(
+                        "Method '" + m.getName() + "' marked with @Override does not override any method in superclass '" + superClass + "'.",
+                        m.getLine(), m.getColumn());
+            }
+        }
+
         MethodSymbol method = new MethodSymbol(
-                m.getName(), m.getReturnType(), buildParamTypes(m.getParameters()),
+                m.getModifier(), m.getName(), m.getReturnType(), buildParamTypes(m.getParameters()),
                 m.getLine(), m.getColumn());
 
         if (!symbolTable.declareMethod(currentClassName, method)) {
@@ -494,8 +501,18 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
     }
 
     private void registerConstructorSignature(NodeConstructorDeclaration c) {
+
+        //* Validate that the constructor name matches the class name
+
+        if (!c.getName().equals(currentClassName)) {
+            errorReporter.reportError(
+                    "Constructor name '" + c.getName() + "' does not match the class name '"
+                            + currentClassName + "'.",
+                    c.getLine(), c.getColumn());
+        }
+
         MethodSymbol ctor = new MethodSymbol(
-                c.getName(), "void", buildParamTypes(c.getParameters()),
+                c.getModifier(), c.getName(), "void", buildParamTypes(c.getParameters()),
                 c.getLine(), c.getColumn());
 
         if (!symbolTable.declareMethod(currentClassName, ctor)) {
@@ -542,7 +559,7 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
                 continue;
             }
             VariableSymbol param = new VariableSymbol(
-                    p.getName(), p.getType(), p.getLine(), p.getColumn());
+            p.getName(), p.getType(), p.getLine(), p.getColumn());
             if (!symbolTable.declare(p.getName(), param)) {
                 errorReporter.reportError(
                         "Parameter '" + p.getName() + "' is already declared.",
@@ -557,5 +574,93 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
             for (NodeParameter p : params) types.add(p.getType());
         }
         return types;
+    }
+
+    private void validateHeritage(NodeClassDeclaration node) {
+        String className = node.getName();
+        String superClass = node.getSuperClass();
+
+        if (superClass == null) {
+            return;
+        }
+
+        if (superClass.equals(className)) {
+            errorReporter.reportError(
+                    "Class '" + className + "' cannot inherit from itself.",
+                    node.getLine(),
+                    node.getColumn()
+            );
+            return;
+        }
+
+        if (!typeTable.exists(superClass)) {
+            errorReporter.reportError(
+                    "Superclass '" + superClass + "' is not defined.",
+                    node.getLine(),
+                    node.getColumn()
+            );
+        }
+    }
+
+    private boolean registerClass(NodeClassDeclaration node) {
+        String className = node.getName();
+
+        ClassSymbol classSymbol = new ClassSymbol(
+                className,
+                node.getLine(),
+                node.getColumn()
+        );
+
+        if (!symbolTable.declare(className, classSymbol)) {
+            errorReporter.reportError(
+                    "Class '" + className + "' is already declared.",
+                    node.getLine(),
+                    node.getColumn()
+            );
+
+            return false;
+        }
+
+        typeTable.registerClass(className);
+        return true;
+    }
+
+    private void registerClassMembers(NodeClassDeclaration node) {
+        for (ASTNode member : node.getMembers()) {
+            registerMember(member);
+        }
+    }
+
+    private void registerMember(ASTNode member) {
+        if (member instanceof NodeMethodDeclaration method) {
+            registerMethodSignature(method, null);
+            return;
+        }
+
+        if (member instanceof NodeConstructorDeclaration constructor) {
+            registerConstructorSignature(constructor);
+            return;
+        }
+
+        if (member instanceof NodeFieldDeclaration field) {
+            registerField(field);
+        }
+    }
+
+    private void analyzeClassBodies(NodeClassDeclaration node) {
+        for (ASTNode member : node.getMembers()) {
+            analyzeMemberBody(member);
+        }
+    }
+
+    private void analyzeMemberBody(ASTNode member) {
+        if (member instanceof NodeMethodDeclaration method) {
+            analyzeMethodBody(method);
+            return;
+        }
+
+        if (member instanceof NodeConstructorDeclaration constructor) {
+            analyzeConstructorBody(constructor);
+        }
     }
 }

@@ -2,9 +2,7 @@ package com.piglatin.zetariano.domain.types;
 
 import lombok.Getter;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Global type table for Zetariano.
@@ -23,9 +21,13 @@ public class ZetarianoTypeTable {
     /** Class types declared by the user in the source file. */
     private final Set<String> userDefinedTypes;
 
+    /** Map of class inheritance */
+    private final Map<String, String> inheritanceMap;
+
     public ZetarianoTypeTable() {
         this.primitiveTypes = new HashSet<>();
         this.userDefinedTypes = new HashSet<>();
+        this.inheritanceMap = new HashMap<>();
         preloadPrimitives();
     }
 
@@ -42,11 +44,14 @@ public class ZetarianoTypeTable {
     }
 
     /**
-     * Registers a user-defined class name in the type table.
+     * Registers a user-defined class with its superclass name in the type table.
      */
-    public void registerClass(String className) {
+    public void registerClass(String className, String superClass) {
         if (className != null && !className.isBlank()) {
             userDefinedTypes.add(className);
+            if (superClass != null && !superClass.isBlank()) {
+                inheritanceMap.put(className, superClass);
+            }
         }
     }
 
@@ -56,6 +61,30 @@ public class ZetarianoTypeTable {
     public boolean exists(String name) {
         if (name == null) return false;
         return primitiveTypes.contains(name) || userDefinedTypes.contains(name);
+    }
+
+    /**
+     * Checks if subType is equal to or inherits from superType.
+     */
+    public boolean isSubtypeOf(String subType, String superType) {
+        if (subType == null || superType == null) return false;
+        if (subType.equals(superType)) return true;
+
+        String current = inheritanceMap.get(subType);
+        Set<String> visited = new HashSet<>();
+
+        while (current != null) {
+            if (current.equals(superType)) {
+                return true;
+            }
+            if (!visited.add(current)) {
+                // Previene bucles infinitos en herencias cíclicas erróneas
+                break;
+            }
+            current = inheritanceMap.get(current);
+        }
+
+        return false;
     }
 
     public boolean isPrimitive(String typeName) {

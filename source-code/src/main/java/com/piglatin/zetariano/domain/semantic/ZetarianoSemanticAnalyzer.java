@@ -56,7 +56,7 @@ public class ZetarianoSemanticAnalyzer {
         ZetarianoCFGBuilder cfgBuilder = new ZetarianoCFGBuilder();
         Map<String, ControlFlowGraph<ASTNode>> cfgs = cfgBuilder.build(program);
 
-        ZetarianoConstantFolder constantFolder = new ZetarianoConstantFolder(reporter);
+        ZetarianoConstantFolder constantFolder = new ZetarianoConstantFolder(reporter, symbolTable);
 
         return new SemanticContext(
                 symbolBuilder.getSymbolTable(),

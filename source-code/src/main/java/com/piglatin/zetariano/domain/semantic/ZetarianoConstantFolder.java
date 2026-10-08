@@ -5,15 +5,20 @@ import com.piglatin.zetariano.domain.ast.expressions.literals.*;
 import com.piglatin.zetariano.domain.ast.principal.*;
 import com.piglatin.zetariano.domain.ast.statements.*;
 import com.piglatin.zetariano.domain.ast.visitor.Visitor;
+import com.piglatin.zetariano.domain.symboltable.Symbol;
+import com.piglatin.zetariano.domain.symboltable.VariableSymbol;
+import com.piglatin.zetariano.domain.symboltable.ZetarianoSymbolTable;
 
 import java.util.Objects;
 
 public class ZetarianoConstantFolder implements Visitor<Object> {
 
     private final SemanticErrorReporter errorReporter;
+    private final ZetarianoSymbolTable symbolTable;
 
-    public ZetarianoConstantFolder(SemanticErrorReporter errorReporter) {
+    public ZetarianoConstantFolder(SemanticErrorReporter errorReporter, ZetarianoSymbolTable symbolTable) {
         this.errorReporter = errorReporter;
+        this.symbolTable = symbolTable;
     }
 
     /**
@@ -58,6 +63,11 @@ public class ZetarianoConstantFolder implements Visitor<Object> {
         return null; // Literal null is null
     }
 
+    @Override
+    public Object visitThis(NodeThis n) {
+        return null;
+    }
+
     // ============================================================
     // EXPRESSIONS
     // ============================================================
@@ -72,13 +82,23 @@ public class ZetarianoConstantFolder implements Visitor<Object> {
             return switch (op) {
                 case "+" -> isNumeric(val) ? val : null;
                 case "-" -> {
-                    if (val instanceof Integer i) yield -i;
-                    if (val instanceof Double d) yield -d;
-                    if (val instanceof Character c) yield -(int) c;
+                    switch (val) {
+                        case Integer i -> {
+                            yield -i;
+                        }
+                        case Double d -> {
+                            yield -d;
+                        }
+                        case Character c -> {
+                            yield -(int) c;
+                        }
+                        default -> {
+                        }
+                    }
                     yield null;
                 }
                 case "!" -> val instanceof Boolean b ? !b : null;
-                default -> null; // ++, -- are not foldable
+                default -> null;
             };
         } catch (Exception e) {
             return null;
@@ -170,7 +190,14 @@ public class ZetarianoConstantFolder implements Visitor<Object> {
     // NON-EVALUABLE EXPRESSIONS (Return null)
     // ============================================================
 
-    @Override public Object visitIdentifier(NodeIdentifier n) { return null; }
+    @Override public Object visitIdentifier(NodeIdentifier n) {
+        if (symbolTable == null || n == null) return null;
+        Symbol sym = symbolTable.lookup(n.getName());
+        if (sym instanceof VariableSymbol vs && vs.getConstantValue() != null) {
+            return vs.getConstantValue();
+        }
+        return null;
+    }
     @Override public Object visitFieldAccess(NodeFieldAccess n) { return null; }
     @Override public Object visitIndexAccess(NodeIndexAccess n) { return null; }
     @Override public Object visitMethodCall(NodeMethodCall n) { return null; }

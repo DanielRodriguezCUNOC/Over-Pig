@@ -25,24 +25,14 @@ public class ZetarianoCFGBuilder implements Visitor<Void> {
 
     public Map<String, ControlFlowGraph<ASTNode>> build(NodeProgram program) {
         methodGraphs.clear();
-        if (program == null || program.getClassDeclaration() == null) return methodGraphs;
+        if (program == null) return methodGraphs;
 
-        NodeClassDeclaration cls = program.getClassDeclaration();
-        if (cls.getMembers() == null) return methodGraphs;
-
-        for (ASTNode member : cls.getMembers()) {
-            if (member instanceof NodeMethodDeclaration m) {
-                methodGraphs.put(
-                        signature(m.getName(), m.getParameters()),
-                        buildMethodGraph(m.getBody())
-                );
-            } else if (member instanceof NodeConstructorDeclaration c) {
-                methodGraphs.put(
-                        signature("<init>", c.getParameters()),
-                        buildMethodGraph(c.getBody())
-                );
-            }
-            // Fields: no executable control flow.
+        List<NodeClassDeclaration> classes = new ArrayList<>();
+        if (program.getClasses() != null && !program.getClasses().isEmpty()) {
+            classes.addAll(program.getClasses());
+        }
+        for (NodeClassDeclaration cls: classes){
+            processClass(cls);
         }
         return methodGraphs;
     }
@@ -89,7 +79,10 @@ public class ZetarianoCFGBuilder implements Visitor<Void> {
     // TOP-LEVEL DECLARATIONS
     // ============================================================
 
-    @Override public Void visitProgram(NodeProgram n) { return null; }
+    @Override public Void visitProgram(NodeProgram n) {
+        build(n);
+        return null;
+    }
 
     @Override
     public Void visitImport(NodeImport n) {
@@ -433,4 +426,33 @@ public class ZetarianoCFGBuilder implements Visitor<Void> {
     @Override public Void visitStringLiteral(NodeStringLiteral n)   { return null; }
     @Override public Void visitBooleanLiteral(NodeBooleanLiteral n) { return null; }
     @Override public Void visitNullLiteral(NodeNullLiteral n)       { return null; }
+
+    @Override
+    public Void visitThis(NodeThis n) {
+        return null;
+    }
+
+    private void processClass(NodeClassDeclaration cls) {
+        if (cls == null || cls.getMembers() == null) return;
+
+        for (ASTNode member : cls.getMembers()) {
+            if (member instanceof NodeMethodDeclaration m) {
+                methodGraphs.put(
+                        signature(cls.getName(), m.getName(), m.getParameters()),
+                        buildMethodGraph(m.getBody())
+                );
+            } else if (member instanceof NodeConstructorDeclaration c) {
+                methodGraphs.put(
+                        signature(cls.getName(), "<init>", c.getParameters()),
+                        buildMethodGraph(c.getBody())
+                );
+            }
+        }
+    }
+
+    private String signature(String className, String name, List<NodeParameter> params) {
+        int arity = (params == null) ? 0 : params.size();
+
+        return className + "#" + name + "/" + arity;
+    }
 }

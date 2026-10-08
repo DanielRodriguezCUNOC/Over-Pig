@@ -5,6 +5,7 @@ import com.piglatin.common.application.ports.input.CompilerUseCase;
 import com.piglatin.common.infrastructure.codegen.C3DContext;
 import com.piglatin.common.infrastructure.codegen.C3DToCConverter;
 import com.piglatin.zetariano.domain.ast.principal.NodeProgram;
+import com.piglatin.zetariano.domain.ast.statements.NodeClassDeclaration;
 import com.piglatin.zetariano.domain.ast.visitor.ZetarianoASTBuilder;
 import com.piglatin.zetariano.domain.semantic.ZetarianoSemanticAnalyzer;
 import com.piglatin.zetariano.domain.semantic.SemanticContext;
@@ -29,17 +30,21 @@ public class ZetarianoCompiler implements CompilerUseCase {
         long startTime = System.currentTimeMillis();
         List<CompilationErrorDTO> errors = new ArrayList<>();
 
+        String fileName = request.getFileName();
         CharStream input = CharStreams.fromString(request.getSourceCode() != null ? request.getSourceCode() : "");
+
+        //* Lexical analysis
         ZetarianoLexer lexer = new ZetarianoLexer(input);
         lexer.removeErrorListeners();
         lexer.addErrorListener(new BaseErrorListener() {
             @Override
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                                     int line, int charPositionInLine, String msg, RecognitionException e) {
-                errors.add(new CompilationErrorDTO(CompilationStage.LEXICAL_ANALYSIS, "Lexical Error: " + msg, line, charPositionInLine, request.getFileName()));
+                errors.add(new CompilationErrorDTO(CompilationStage.LEXICAL_ANALYSIS, "Lexical Error: " + msg, line, charPositionInLine, fileName));
             }
         });
 
+        //* Syntactic analysis
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         ZetarianoParser parser = new ZetarianoParser(tokens);
         parser.removeErrorListeners();
@@ -47,15 +52,15 @@ public class ZetarianoCompiler implements CompilerUseCase {
             @Override
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                                     int line, int charPositionInLine, String msg, RecognitionException e) {
-                errors.add(new CompilationErrorDTO(CompilationStage.SYNTACTIC_ANALYSIS, "Syntax Error: " + msg, line, charPositionInLine, request.getFileName()));
+                errors.add(new CompilationErrorDTO(CompilationStage.SYNTACTIC_ANALYSIS, "Syntax Error: " + msg, line, charPositionInLine, fileName));
             }
         });
 
-        ParseTree parseTree;
+        ParseTree tree;
         try {
-            parseTree = parser.compilationUnit();
+            tree = parser.compilationUnit();
         } catch (Exception e) {
-            errors.add(new CompilationErrorDTO(CompilationStage.SYNTACTIC_ANALYSIS, "Fatal Error: " + e.getMessage(), 0, 0, request.getFileName()));
+            errors.add(new CompilationErrorDTO(CompilationStage.SYNTACTIC_ANALYSIS, "Parsing Error: " + e.getMessage(), 0, 0, fileName));
             return new CompileResponseDTO(false, errors, null, null, System.currentTimeMillis() - startTime);
         }
 
@@ -63,76 +68,75 @@ public class ZetarianoCompiler implements CompilerUseCase {
             return new CompileResponseDTO(false, errors, null, null, System.currentTimeMillis() - startTime);
         }
 
+        //* Build AST
         ZetarianoASTBuilder astBuilder = new ZetarianoASTBuilder();
-        NodeProgram ast = (NodeProgram) astBuilder.visit(parseTree);
+        NodeProgram ast = (NodeProgram) astBuilder.visit(tree);
 
         ZetarianoTypeTable typeTable = new ZetarianoTypeTable();
         ZetarianoSymbolTable symbolTable = new ZetarianoSymbolTable();
         ClassLayout classLayout = new ClassLayout();
 
+        //* Load AST of sibling classes
         List<NodeProgram> siblingPrograms = new ArrayList<>();
         if (request.getProjectDirectory() != null) {
-            siblingPrograms = loadSiblingClasses(request.getProjectDirectory(), request.getCurrentFileName());
+            siblingPrograms = loadSiblingClasses(request.getProjectDirectory(), fileName);
         }
 
-        for (NodeProgram siblingProgram : siblingPrograms) {
-            try {
-                if (siblingProgram == null || siblingProgram.getClassDeclaration() == null) continue;
-                typeTable.registerClass(siblingProgram.getClassDeclaration().getName());
-                ZetarianoSemanticAnalyzer siblingAnalyzer = new ZetarianoSemanticAnalyzer(request.getFileName());
-                SemanticContext siblingContext = siblingAnalyzer.analyze(siblingProgram, typeTable, symbolTable);
-                classLayout.registerClass(siblingProgram.getClassDeclaration());
-                if (siblingContext.hasErrors()) {
-                    System.err.println("[ZetarianoCompiler] Clase hermana '"
-                            + siblingProgram.getClassDeclaration().getName() + "' con errores semánticos, se continúa.");
-                }
-            } catch (Exception e) {
-                System.err.println("[ZetarianoCompiler] Error procesando clase hermana: "
-                        + e.getClass().getSimpleName() + ": " + e.getMessage());
+        List<NodeProgram> allPrograms = new ArrayList<>(siblingPrograms);
+        if (ast != null) allPrograms.add(ast);
+
+        //? Pre register of classes and layouts
+        for (NodeProgram program: allPrograms){
+            for (NodeClassDeclaration cls: getClassesFromProgram(program)){
+                typeTable.registerClass(cls.getName(), cls.getSuperClass());
+                classLayout.registerClass(cls);
             }
         }
 
-        ZetarianoSemanticAnalyzer semanticAnalyzer = new ZetarianoSemanticAnalyzer(request.getFileName());
+        //? Semantic analysis of sibling classes
+        for (NodeProgram siblingProgram: siblingPrograms){
+            try {
+                ZetarianoSemanticAnalyzer siblingAnalyzer = new ZetarianoSemanticAnalyzer(fileName);
+                siblingAnalyzer.analyze(siblingProgram, typeTable, symbolTable);
+            } catch (Exception e) {
+                System.err.println("[ZetarianoCompiler] Error analizando clase hermana: " + e.getMessage());
+            }
+        }
+
+        //? Semantic analysis of the main program
+        ZetarianoSemanticAnalyzer semanticAnalyzer = new ZetarianoSemanticAnalyzer(fileName);
         SemanticContext context = semanticAnalyzer.analyze(ast, typeTable, symbolTable);
 
         if (context.getErrorReporter() != null && context.getErrorReporter().hasErrors()) {
-            for (CompilationErrorDTO err : context.getErrorReporter().getErrors()) {
-                errors.add(err);
-            }
+            errors.addAll(context.getErrorReporter().getErrors());
         }
 
         if (!errors.isEmpty()) {
             return new CompileResponseDTO(false, errors, null, null, System.currentTimeMillis() - startTime);
         }
 
-        if (ast.getClassDeclaration() != null) {
-            classLayout.registerClass(ast.getClassDeclaration());
-        }
-
-        // --- Generación de C3D---
+        //? C3D Generation and C Code Generation
         C3DContext c3dContext = new C3DContext();
-        ZetarianoC3DVisitor visitor = new ZetarianoC3DVisitor(c3dContext, classLayout, symbolTable, typeTable);
+        ZetarianoC3DVisitor c3dVisitor = new ZetarianoC3DVisitor(c3dContext, classLayout, symbolTable, typeTable);
 
-
-        if (ast.getClassDeclaration() != null) {
-            visitor.generateEntryPoint(ast.getClassDeclaration());
+        //* Generte c3d FOR ALL SIBLING CLASSES
+        for (NodeProgram siblingProgram: siblingPrograms){
+            c3dVisitor.generate(siblingProgram);
         }
 
-        for (NodeProgram siblingProgram : siblingPrograms) {
-            if (siblingProgram != null && siblingProgram.getClassDeclaration() != null) {
-                visitor.generate(siblingProgram);
-            }
+        //* Generate c3d for the objetive file
+        if (ast != null){
+            List<NodeClassDeclaration> astClasses = getClassesFromProgram(ast);
+            if (!astClasses.isEmpty()) c3dVisitor.generateEntryPoint(astClasses.get(0));
+            c3dVisitor.generate(ast);
+
         }
-
-        visitor.generate(ast);
-
 
         String c3dCode = dumpC3D(c3dContext);
         String cCode = C3DToCConverter.convertToC(c3dContext);
 
-        GeneretedCodeDTO generatedCode = new GeneretedCodeDTO(c3dCode, cCode, "main");
-        return new CompileResponseDTO(true, errors, generatedCode, null, System.currentTimeMillis() - startTime);
-    }
+        GeneretedCodeDTO generatedCode = new GeneretedCodeDTO();
+        return new CompileResponseDTO(true, errors, generatedCode, null, System.currentTimeMillis() - startTime);    }
 
     private String dumpC3D(C3DContext ctx) {
         StringBuilder sb = new StringBuilder();
@@ -140,6 +144,13 @@ public class ZetarianoCompiler implements CompilerUseCase {
             sb.append(q.toString()).append("\n");
         }
         return sb.toString();
+    }
+
+    private List<NodeClassDeclaration> getClassesFromProgram(NodeProgram program) {
+        if (program == null || program.getClasses() == null) {
+            return List.of();
+        }
+        return program.getClasses();
     }
 
     private List<NodeProgram> loadSiblingClasses(String projectDirectory, String currentFileName) {
@@ -164,12 +175,12 @@ public class ZetarianoCompiler implements CompilerUseCase {
                 ZetarianoASTBuilder builder = new ZetarianoASTBuilder();
                 NodeProgram program = (NodeProgram) builder.visit(tree);
 
-                if (program != null && program.getClassDeclaration() != null) {
+                if (program != null && !getClassesFromProgram(program).isEmpty()) {
                     siblings.add(program);
                 }
             } catch (Exception e) {
-                System.err.println("[loadSiblingClasses] Skipping " + file.getName()
-                        + " due to: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                System.err.println("[loadSiblingClasses] Omitiendo " + file.getName()
+                        + " por error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         }
         return siblings;

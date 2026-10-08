@@ -15,6 +15,7 @@ import com.piglatin.y.domain.ast.visitor.YASTBuilder;
 import com.piglatin.y.domain.semantic.YSemanticAnalyzer;
 import com.piglatin.y.domain.symboltable.YSymbolTable;
 import com.piglatin.y.domain.types.YTypeTable;
+import com.piglatin.zetariano.domain.ast.statements.NodeClassDeclaration;
 import com.piglatin.zetariano.domain.ast.visitor.ZetarianoASTBuilder;
 import com.piglatin.zetariano.domain.semantic.ZetarianoSemanticAnalyzer;
 import com.piglatin.zetariano.domain.symboltable.Symbol;
@@ -120,7 +121,7 @@ public class PigLatinCompiler implements CompilerUseCase {
             // Emitir hermanos .z
             for (com.piglatin.zetariano.domain.ast.principal.NodeProgram z : siblings.zPrograms) {
                 try {
-                    if (z == null || z.getClassDeclaration() == null) continue;
+                    if (z == null || z.getClasses() == null || z.getClasses().isEmpty()) continue;
                     com.piglatin.zetariano.infrastructure.codegen.c3d.ZetarianoC3DVisitor zVisitor =
                             new com.piglatin.zetariano.infrastructure.codegen.c3d.ZetarianoC3DVisitor(
                                     c3dContext, zLayout, zSymbolTable, zTypeTable);
@@ -241,16 +242,18 @@ public class PigLatinCompiler implements CompilerUseCase {
 
         Object built = builder.visit(tree);
         if (!(built instanceof com.piglatin.zetariano.domain.ast.principal.NodeProgram program)) return;
-        if (program.getClassDeclaration() == null) return;
+        if (program.getClasses() == null || program.getClasses().isEmpty()) return;
 
-        String className = program.getClassDeclaration().getName();
-        zTypeTable.registerClass(className);
+        for (NodeClassDeclaration cls: program.getClasses()){
+            if (cls !=null){
+                zTypeTable.registerClass(cls.getName(), cls.getSuperClass());
+                zLayout.registerClass(cls);
+            }
+        }
 
         ZetarianoSemanticAnalyzer zAnalyzer =
                 new ZetarianoSemanticAnalyzer(currentFileName);
         zAnalyzer.analyze(program, zTypeTable, zSymbolTable);
-
-        zLayout.registerClass(program.getClassDeclaration());
 
         result.zPrograms.add(program);
     }
