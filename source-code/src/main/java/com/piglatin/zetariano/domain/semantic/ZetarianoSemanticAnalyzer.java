@@ -24,6 +24,8 @@ public class ZetarianoSemanticAnalyzer {
 
     public SemanticContext analyze(NodeProgram program, ZetarianoTypeTable typeTable, ZetarianoSymbolTable symbolTable) {
 
+        //* This is for the inheritance
+        symbolTable.setTypeTable(typeTable);
         SemanticErrorReporter reporter = new SemanticErrorReporter(fileName);
 
         ZetarianoSymbolTableBuilder symbolBuilder = new ZetarianoSymbolTableBuilder(symbolTable, typeTable, reporter);

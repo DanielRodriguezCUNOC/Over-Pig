@@ -2,8 +2,9 @@ package com.piglatin.zetariano.application.services;
 
 import com.piglatin.common.application.dto.*;
 import com.piglatin.common.application.ports.input.CompilerUseCase;
-import com.piglatin.common.infrastructure.codegen.C3DContext;
-import com.piglatin.common.infrastructure.codegen.C3DToCConverter;
+import com.piglatin.common.infrastructure.codegen.ir.C3DContext;
+import com.piglatin.common.infrastructure.codegen.ir.Instruction;
+import com.piglatin.common.infrastructure.codegen.riscv.C3DToRiscVConverter;
 import com.piglatin.zetariano.domain.ast.principal.NodeProgram;
 import com.piglatin.zetariano.domain.ast.statements.NodeClassDeclaration;
 import com.piglatin.zetariano.domain.ast.visitor.ZetarianoASTBuilder;
@@ -11,7 +12,6 @@ import com.piglatin.zetariano.domain.semantic.ZetarianoSemanticAnalyzer;
 import com.piglatin.zetariano.domain.semantic.SemanticContext;
 import com.piglatin.zetariano.domain.symboltable.ZetarianoSymbolTable;
 import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
-import com.piglatin.zetariano.infrastructure.codegen.c3d.ClassLayout;
 import com.piglatin.zetariano.infrastructure.codegen.c3d.ZetarianoC3DVisitor;
 import com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoLexer;
 import com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoParser;
@@ -22,6 +22,8 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class ZetarianoCompiler implements CompilerUseCase {
 
@@ -74,7 +76,6 @@ public class ZetarianoCompiler implements CompilerUseCase {
 
         ZetarianoTypeTable typeTable = new ZetarianoTypeTable();
         ZetarianoSymbolTable symbolTable = new ZetarianoSymbolTable();
-        ClassLayout classLayout = new ClassLayout();
 
         //* Load AST of sibling classes
         List<NodeProgram> siblingPrograms = new ArrayList<>();
@@ -85,11 +86,10 @@ public class ZetarianoCompiler implements CompilerUseCase {
         List<NodeProgram> allPrograms = new ArrayList<>(siblingPrograms);
         if (ast != null) allPrograms.add(ast);
 
-        //? Pre register of classes and layouts
+        //? Pre register of classes
         for (NodeProgram program: allPrograms){
             for (NodeClassDeclaration cls: getClassesFromProgram(program)){
                 typeTable.registerClass(cls.getName(), cls.getSuperClass());
-                classLayout.registerClass(cls);
             }
         }
 
@@ -115,11 +115,16 @@ public class ZetarianoCompiler implements CompilerUseCase {
             return new CompileResponseDTO(false, errors, null, null, System.currentTimeMillis() - startTime);
         }
 
-        //? C3D Generation and C Code Generation
-        C3DContext c3dContext = new C3DContext();
-        ZetarianoC3DVisitor c3dVisitor = new ZetarianoC3DVisitor(c3dContext, classLayout, symbolTable, typeTable);
+        // Compile (solo semántica): no se genera C3D ni RISC-V
+        if (request.getMode() == CompilationMode.VALIDATE_ONLY) {
+            return new CompileResponseDTO(true, errors, null, null, System.currentTimeMillis() - startTime);
+        }
 
-        //* Generte c3d FOR ALL SIBLING CLASSES
+        //? C3D Generation and RISC-V Generation
+        C3DContext c3dContext = new C3DContext();
+        ZetarianoC3DVisitor c3dVisitor = new ZetarianoC3DVisitor(c3dContext, symbolTable, typeTable);
+
+        //* Generte c3d for sibling classes.
         for (NodeProgram siblingProgram: siblingPrograms){
             c3dVisitor.generate(siblingProgram);
         }
@@ -132,18 +137,28 @@ public class ZetarianoCompiler implements CompilerUseCase {
 
         }
 
+        //* C3D -> RISC-V. Un solo visitor atendió a los hermanos y a la clase principal,
+        //* así que strings (str_N) y vtables salen de él.
+        List<Instruction> instructions = c3dContext.getInstructions();
+        Map<String, String> strings = c3dVisitor.getStringLiterals();
+        Map<String, List<String>> vtables = c3dVisitor.getVtables();
+
+        C3DToRiscVConverter riscv = new C3DToRiscVConverter(instructions, strings, vtables);
+        String asm = riscv.convert();
+
         String c3dCode = dumpC3D(c3dContext);
-        String cCode = C3DToCConverter.convertToC(c3dContext);
 
         GeneretedCodeDTO generatedCode = new GeneretedCodeDTO();
-        return new CompileResponseDTO(true, errors, generatedCode, null, System.currentTimeMillis() - startTime);    }
+        generatedCode.setC3dCode(c3dCode);
+        generatedCode.setAsmCode(asm);
+        generatedCode.setEntryPoint("main");
+        return new CompileResponseDTO(true, errors, generatedCode, null, System.currentTimeMillis() - startTime);
+    }
 
     private String dumpC3D(C3DContext ctx) {
-        StringBuilder sb = new StringBuilder();
-        for (var q : ctx.getQuadruples()) {
-            sb.append(q.toString()).append("\n");
-        }
-        return sb.toString();
+        return ctx.getInstructions().stream()
+                .map(Instruction::toC3D)
+                .collect(Collectors.joining("\n"));
     }
 
     private List<NodeClassDeclaration> getClassesFromProgram(NodeProgram program) {

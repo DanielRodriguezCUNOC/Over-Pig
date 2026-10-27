@@ -11,6 +11,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -20,9 +21,20 @@ public class PigLatinSemanticAnalyzer {
     private PigLatinTypeTable typeTable;
 
     public List<CustomErrorDTO> analyze (NodeProgram ast) {
+        return analyze(ast, Map.of());
+    }
+
+    /**
+     * classInheritance: herencia de las clases Zetariano importadas,
+     * para aceptar asignaciones polimórficas
+     */
+    public List<CustomErrorDTO> analyze (NodeProgram ast, Map<String, String> classInheritance) {
         if (ast == null) return List.of();
         symbolTable = new PigLatinSymbolTable();
         typeTable = new PigLatinTypeTable();
+        if (classInheritance != null) {
+            classInheritance.forEach(typeTable::registerInheritance);
+        }
         SemanticErrorReporter errorReporter = new SemanticErrorReporter();
 
         //* Fisrt pass: symbol table, sequentiality, etc
@@ -32,7 +44,7 @@ public class PigLatinSemanticAnalyzer {
         /**
          * Exctract the symbol table built
          * this is necessary for that TypeChecker needs the symbolTable built
-        */
+         */
         symbolTable = symbolTableBuilder.getSymbolTable();
 
         //* Second pass: type checker, resole expressions

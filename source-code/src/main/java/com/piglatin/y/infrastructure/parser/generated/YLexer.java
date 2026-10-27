@@ -157,28 +157,40 @@ public class YLexer extends Lexer {
 
 	//* Calculate spaces and emit INDENT/DEDENT tokens
 	private void processNewLine(String text) {
-	//Delete line breaks for count tabs and spaces
-	String spaces = text.replaceAll("[\r\n]+", "");
-	int indent = 0;
-	for (char c : spaces.toCharArray()) {
-	    //* tabs = 4 spaces
-	    if (c == '\t') indent += 4;
-	     else indent++;
-	   }
+	    //* Lines that only contain a comment or whitespace do not affect indentation
+	    int next = _input.LA(1);
+	    if (next == '\r' || next == '\n' || next == IntStream.EOF) return;
+	    if (next == '/') {
+	        int next2 = _input.LA(2);
+	        if (next2 == '/' || next2 == '*') return;
+	    }
 
-	   int currentIndent = indents.peek();
+	    //* Delete line breaks to count tabs and spaces
+	    String spaces = text.replaceAll("[\r\n]+", "");
+	    int indent = 0;
+	    for (char c : spaces.toCharArray()) {
+	        //* tab = 4 spaces
+	        if (c == '\t') indent += 4;
+	        else indent++;
+	    }
+
+	    int currentIndent = indents.peek();
 	    if (indent > currentIndent) {
-	    indents.push(indent);
-	    pendingTokens.add(commonToken(YLexer.INDENT, ""));
-	    }else{
+	        indents.push(indent);
+	        pendingTokens.add(commonToken(YLexer.INDENT, ""));
+	    } else {
 	        while (indent < currentIndent) {
 	            indents.pop();
 	            pendingTokens.add(commonToken(YLexer.DEDENT, ""));
 	            currentIndent = indents.peek();
-
+	        }
+	        if (indent != currentIndent) {
+	            //* Dedent to a level that was never opened
+	            getErrorListenerDispatch().syntaxError(this, null, getLine(), getCharPositionInLine(),
+	                "inconsistent indentation (" + indent + " spaces, expected " + currentIndent + ")", null);
 	        }
 	    }
-	 }
+	}
 
 
 	public YLexer(CharStream input) {

@@ -41,6 +41,18 @@ public class YParserBaseListener implements YParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterStructDeclaration(YParser.StructDeclarationContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitStructDeclaration(YParser.StructDeclarationContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterStructBlock(YParser.StructBlockContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -60,18 +72,6 @@ public class YParserBaseListener implements YParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFieldSimpleOrArray(YParser.FieldSimpleOrArrayContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterMainInstructions(YParser.MainInstructionsContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitMainInstructions(YParser.MainInstructionsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -144,6 +144,18 @@ public class YParserBaseListener implements YParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitBlock(YParser.BlockContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInstructionStructDecl(YParser.InstructionStructDeclContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInstructionStructDecl(YParser.InstructionStructDeclContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -245,18 +257,6 @@ public class YParserBaseListener implements YParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterInstructionDeclaration(YParser.InstructionDeclarationContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitInstructionDeclaration(YParser.InstructionDeclarationContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterInstructionArrayDeclaration(YParser.InstructionArrayDeclarationContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -264,6 +264,18 @@ public class YParserBaseListener implements YParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitInstructionArrayDeclaration(YParser.InstructionArrayDeclarationContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInstructionDeclaration(YParser.InstructionDeclarationContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInstructionDeclaration(YParser.InstructionDeclarationContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -485,13 +497,25 @@ public class YParserBaseListener implements YParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterExprLogical(YParser.ExprLogicalContext ctx) { }
+	@Override public void enterExprAnd(YParser.ExprAndContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitExprLogical(YParser.ExprLogicalContext ctx) { }
+	@Override public void exitExprAnd(YParser.ExprAndContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterExprOr(YParser.ExprOrContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitExprOr(YParser.ExprOrContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

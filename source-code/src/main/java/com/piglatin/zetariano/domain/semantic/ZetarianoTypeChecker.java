@@ -58,33 +58,14 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         this.currentClassName = n.getName();
         symbolTable.pushScope("class_" + currentClassName);
 
-        // Pre-register all fields into current scope and classFields map
-
-        for (ASTNode member : n.getMembers()) {
-            if (member instanceof NodeFieldDeclaration f) {
-                int dims = f.isArray() ? Math.max(1, f.getDimensions()) : 0;
-                String fType = f.getType() + (f.isArray() ? "[]".repeat(dims) : "");
-                if (f.isArray()) {
-                    ArraySymbol as = new ArraySymbol(f.getName(), "SERIES_" + f.getType(),
-                            dims, f.getType(), f.getLine(), f.getColumn());
-                    symbolTable.declare(f.getName(), as);
-                    symbolTable.declareField(currentClassName, f.getName(), as);
-                } else {
-                    VariableSymbol vs = new VariableSymbol(f.getName(), fType, f.getLine(), f.getColumn());
-                    symbolTable.declare(f.getName(), vs);
-                    symbolTable.declareField(currentClassName, f.getName(), vs);
-                }
-            }
-        }
-
-        // Validate field initializers
+        //* Validar inicializadores de campos
         for (ASTNode member : n.getMembers()) {
             if (member instanceof NodeFieldDeclaration f) {
                 f.accept(this);
             }
         }
 
-        // Validate constructors and methods
+        //* Validar constructores y métodos
         for (ASTNode member : n.getMembers()) {
             if (member instanceof NodeConstructorDeclaration c) {
                 c.accept(this);
@@ -132,10 +113,13 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         if (n.getParameters() != null) {
             for (NodeParameter p : n.getParameters()) {
                 if (p == null) continue;
-                String pType = p.getType() + (p.isArray() ? "[]" : "");
+                // p.getType() ya incluye los corchetes (p.ej. "Cuenta[]"): no volver a agregarlos.
+                String pBase = p.getType().replace("[]", "");
+                int pDims = (p.getType().length() - pBase.length()) / 2;
+                String pType = p.getType();
                 if (p.isArray()) {
                     symbolTable.declare(p.getName(), new ArraySymbol(
-                            p.getName(), "SERIES_" + p.getType(), 1, p.getType(), p.getLine(), p.getColumn()));
+                            p.getName(), "SERIES_" + pBase, Math.max(1, pDims), pBase, p.getLine(), p.getColumn()));
                 } else {
                     symbolTable.declare(p.getName(), new VariableSymbol(
                             p.getName(), pType, p.getLine(), p.getColumn()));
@@ -162,10 +146,13 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         if (n.getParameters() != null) {
             for (NodeParameter p : n.getParameters()) {
                 if (p == null) continue;
-                String pType = p.getType() + (p.isArray() ? "[]" : "");
+                // p.getType() ya incluye los corchetes (p.ej. "Cuenta[]"): no volver a agregarlos.
+                String pBase = p.getType().replace("[]", "");
+                int pDims = (p.getType().length() - pBase.length()) / 2;
+                String pType = p.getType();
                 if (p.isArray()) {
                     symbolTable.declare(p.getName(), new ArraySymbol(
-                            p.getName(), "SERIES_" + p.getType(), 1, p.getType(), p.getLine(), p.getColumn()));
+                            p.getName(), "SERIES_" + pBase, Math.max(1, pDims), pBase, p.getLine(), p.getColumn()));
                 } else {
                     symbolTable.declare(p.getName(), new VariableSymbol(
                             p.getName(), pType, p.getLine(), p.getColumn()));
@@ -186,10 +173,6 @@ public class ZetarianoTypeChecker implements Visitor<String> {
     public String visitParameter(NodeParameter n) {
         return null;
     }
-
-    // ============================================================
-    // STATEMENTS
-    // ============================================================
 
     @Override
     public String visitBlock(NodeBlock n) {
@@ -470,10 +453,6 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         return null;
     }
 
-    // ============================================================
-    // EXPRESSIONS
-    // ============================================================
-
     @Override
     public String visitTernaryExpression(NodeTernaryExpression n) {
         if (n == null) return null;
@@ -640,10 +619,10 @@ public class ZetarianoTypeChecker implements Visitor<String> {
             return null;
         }
 
-        if (sym instanceof VariableSymbol vs) {
-            return vs.getType();
-        } else if (sym instanceof ArraySymbol as) {
+        if (sym instanceof ArraySymbol as) {
             return as.getElementType() + "[]".repeat(as.getDimensions());
+        } else if (sym instanceof VariableSymbol vs) {
+            return vs.getType();
         } else if (sym instanceof ClassSymbol cs) {
             return cs.getName();
         }
@@ -828,10 +807,6 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         return n.getType() + "[]".repeat(dims);
     }
 
-    // ============================================================
-    // LITERALS
-    // ============================================================
-
     @Override
     public String visitIntegerLiteral(NodeIntegerLiteral n) {
         return "int";
@@ -871,10 +846,6 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         }
         return currentClassName;
     }
-
-    // ============================================================
-    // TYPE SYSTEM HELPERS
-    // ============================================================
 
     private boolean isNumeric(String type) {
         return "int".equals(type) || "double".equals(type) || "char".equals(type);

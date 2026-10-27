@@ -1,4 +1,4 @@
-package com.piglatin.piglatin.infrastructure.parser;
+package com.piglatin.piglatin.application.services;
 
 import com.piglatin.common.application.dto.CustomErrorDTO;
 import com.piglatin.piglatin.infrastructure.parser.generated.LatinLexer;

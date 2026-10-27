@@ -60,7 +60,11 @@ public class ZetarianoTypeTable {
      */
     public boolean exists(String name) {
         if (name == null) return false;
-        return primitiveTypes.contains(name) || userDefinedTypes.contains(name);
+        String baseType = name;
+        while (baseType.endsWith("[]")) {
+            baseType = baseType.substring(0, baseType.length() - 2);
+        }
+        return primitiveTypes.contains(baseType) || userDefinedTypes.contains(baseType);
     }
 
     /**

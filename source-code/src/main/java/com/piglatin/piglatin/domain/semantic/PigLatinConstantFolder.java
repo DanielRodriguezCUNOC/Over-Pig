@@ -144,11 +144,6 @@ public class PigLatinConstantFolder implements Visitor<Object> {
     }
 
     @Override
-    public Object visitFunctionDeclaration(NodeFunctionDeclaration n) {
-        return null;
-    }
-
-    @Override
     public Object visitIndexAccess(NodeIndexAccess n) {
         return null;
     }
@@ -244,6 +239,16 @@ public class PigLatinConstantFolder implements Visitor<Object> {
 
     @Override
     public Object visitFunctionCall(NodeFunctionCall n) {
+        return null;
+    }
+
+    @Override
+    public Object visitNullLiteral(NodeNullLiteral n) {
+        return null;
+    }
+
+    @Override
+    public Object visitMethodCall(NodeMethodCall n) {
         return null;
     }
 

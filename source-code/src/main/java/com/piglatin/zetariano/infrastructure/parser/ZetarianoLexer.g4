@@ -70,6 +70,7 @@ SEMI         : ';' ;
 COMMA        : ',' ;
 DOT          : '.' ;
 
+DOUBLE_LITERAL : [0-9]+ '.' [0-9]+ ;
 INT_LITERAL    : [0-9]+ ;
 CHAR_LITERAL   : '\'' ( '\\' [btnfr"'\\] | ~['\\\r\n] ) '\'' ;
 STRING_LITERAL : '"' ( '\\' [btnfr"'\\] | ~["\\\r\n] )* '"' ;

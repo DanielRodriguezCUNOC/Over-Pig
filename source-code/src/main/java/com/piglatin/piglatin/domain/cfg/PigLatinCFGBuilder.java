@@ -58,10 +58,6 @@ public class PigLatinCFGBuilder implements Visitor<Void> {
         return block;
     }
 
-    // ============================================================
-    // PROGRAM & BLOCKS
-    // ============================================================
-
     @Override
     public Void visitProgram(NodeProgram n) {
         for (NodeDeclaration decl : n.getGlobalDeclarations()) {
@@ -81,13 +77,12 @@ public class PigLatinCFGBuilder implements Visitor<Void> {
         return null;
     }
 
-    // ============================================================
     // CONTROL FLOW BRANCHES
-    // ============================================================
 
     @Override
     public Void visitIf(NodeIf n) {
-        // Evaluate condition in current block
+
+        //* Evaluate condition in current block
         currentBlock.addInstruction(n.getCondition());
         BasicBlock<ASTNode> conditionBlock = currentBlock;
 
@@ -244,9 +239,7 @@ public class PigLatinCFGBuilder implements Visitor<Void> {
         return null;
     }
 
-    // ============================================================
     // JUMPS & CONTROL FLOW BREAKERS
-    // ============================================================
 
     @Override
     public Void visitBreak(NodeBreak n) {
@@ -278,9 +271,7 @@ public class PigLatinCFGBuilder implements Visitor<Void> {
         return null;
     }
 
-    // ============================================================
     // LINEAR INSTRUCTIONS
-    // ============================================================
 
     @Override
     public Void visitVariableDeclaration(NodeVariableDeclaration n) {
@@ -315,6 +306,16 @@ public class PigLatinCFGBuilder implements Visitor<Void> {
     @Override
     public Void visitFunctionCall(NodeFunctionCall n) {
         if (currentBlock != null) currentBlock.addInstruction(n);
+        return null;
+    }
+
+    @Override
+    public Void visitNullLiteral(NodeNullLiteral n) {
+        return null;
+    }
+
+    @Override
+    public Void visitMethodCall(NodeMethodCall n) {
         return null;
     }
 

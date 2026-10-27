@@ -39,11 +39,11 @@ import lombok.Setter;
 @Setter
 public class PigLatinSymbolTableBuilder implements Visitor<Void> {
 
-private final PigLatinSymbolTable symbolTable;
-private final PigLatinTypeTable typeTable;
-private final SemanticErrorReporter errorReporter;
-private int loopDepth = 0;
-private boolean hasImports = false;
+    private final PigLatinSymbolTable symbolTable;
+    private final PigLatinTypeTable typeTable;
+    private final SemanticErrorReporter errorReporter;
+    private int loopDepth = 0;
+    private boolean hasImports = false;
 
     public PigLatinSymbolTableBuilder(PigLatinTypeTable typeTable, SemanticErrorReporter errorReporter) {
         this.symbolTable = new PigLatinSymbolTable();
@@ -131,8 +131,8 @@ private boolean hasImports = false;
     public Void visitAssignment(NodeAssignment n) {
 
         //* Check if left/right side exists
-        n.getLvalue().accept(this);
-        n.getExpression().accept(this);
+        if (n.getLvalue() != null) n.getLvalue().accept(this);
+        if (n.getExpression() != null) n.getExpression().accept(this);
         return null;
     }
 
@@ -354,6 +354,27 @@ private boolean hasImports = false;
     }
 
 
+
+    @Override
+    public Void visitNullLiteral(NodeNullLiteral n) {
+        return null;
+    }
+
+    @Override
+    public Void visitMethodCall(NodeMethodCall n) {
+        ASTNode target = n.getTarget();
+        if (target instanceof NodeFieldAccess fieldAccess) {
+            if (fieldAccess.getCurrentNode() != null) fieldAccess.getCurrentNode().accept(this);
+        } else if (target != null && !(target instanceof NodeIdentifier)) {
+            target.accept(this);
+        }
+        if (n.getArguments() != null) {
+            for (ASTNode argument : n.getArguments()) {
+                if (argument != null) argument.accept(this);
+            }
+        }
+        return null;
+    }
 
     @Override
     public Void visitFunctionCall(NodeFunctionCall n) {

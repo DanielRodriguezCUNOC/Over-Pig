@@ -37,9 +37,22 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
     public Void visitProgram(NodeProgram n) {
         if (n == null) return null;
 
-        if (n.getClassDeclaration() != null) {
-            n.getClassDeclaration().accept(this);
+        //* Pre-registrar todas las clases y herencias en el typeTable
+        if (n.getClasses() != null) {
+            for (NodeClassDeclaration classDecl : n.getClasses()) {
+                if (classDecl != null) {
+                    typeTable.registerClass(classDecl.getName(), classDecl.getSuperClass());
+                }
+            }
         }
+
+        //* Procesar la declaración y miembros de las clases
+        if (n.getClasses() != null) {
+            for (NodeClassDeclaration classDecl : n.getClasses()) {
+                if (classDecl != null) classDecl.accept(this);
+            }
+        }
+
         return null;
     }
 
@@ -160,10 +173,10 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
             n.getInitializer().accept(this);
         }
 
-        String arrayType = n.getType() + "[]".repeat(n.getDimensions());
+        String arrayType = n.getType() + "[]".repeat(Math.max(1, n.getDimensions()));
 
         ArraySymbol arraySymbol = new ArraySymbol(
-                n.getName(), "[]" + n.getType(),
+                n.getName(), arrayType,
                 n.getDimensions(), n.getType(), n.getLine(), n.getColumn());
 
         if (!symbolTable.declare(n.getName(), arraySymbol)) {
@@ -463,14 +476,37 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
                     "Invalid field type '" + f.getType() + "'.",
                     f.getLine(), f.getColumn());
         }
-        VariableSymbol field = new VariableSymbol(
-                f.getModifier(), f.getName(), f.getType(), f.getLine(), f.getColumn());
 
-        if (!symbolTable.declare(f.getName(), field)) {
+        Symbol fieldSymbol;
+        if (f.isArray()) {
+            int dims = Math.max(1, f.getDimensions());
+            String arrayType = f.getType() + "[]".repeat(dims);
+            fieldSymbol = new ArraySymbol(
+                    f.getName(), arrayType,
+                    dims, f.getType(), f.getLine(), f.getColumn());
+        } else {
+            fieldSymbol = new VariableSymbol(
+                    f.getModifier(), f.getName(), f.getType(), f.getLine(), f.getColumn());
+        }
+
+        if (!symbolTable.declare(f.getName(), fieldSymbol)) {
             errorReporter.reportError(
                     "Field '" + f.getName() + "' is already declared.",
                     f.getLine(), f.getColumn());
+        } else if (currentClassName != null) {
+            symbolTable.declareField(currentClassName, f.getName(), fieldSymbol);
         }
+    }
+
+    /** Busca el método en la superclase y, si no está, en sus ancestros. */
+    private boolean existsInHierarchy(String className, String methodName) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        String current = className;
+        while (current != null && visited.add(current)) {
+            if (symbolTable.existsMethod(current, methodName)) return true;
+            current = typeTable.getInheritanceMap().get(current);
+        }
+        return false;
     }
 
     private void registerMethodSignature(NodeMethodDeclaration m, String superClass) {
@@ -481,7 +517,7 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
                 errorReporter.reportError(
                         "Method '" + m.getName() + "' is marked with @Override but the class '" + currentClassName + "' does not have a superclass.",
                         m.getLine(), m.getColumn());
-            } else if (!symbolTable.existsMethod(superClass, m.getName())) {
+            } else if (!existsInHierarchy(superClass, m.getName())) {
                 errorReporter.reportError(
                         "Method '" + m.getName() + "' marked with @Override does not override any method in superclass '" + superClass + "'.",
                         m.getLine(), m.getColumn());
@@ -559,7 +595,7 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
                 continue;
             }
             VariableSymbol param = new VariableSymbol(
-            p.getName(), p.getType(), p.getLine(), p.getColumn());
+                    p.getName(), p.getType(), p.getLine(), p.getColumn());
             if (!symbolTable.declare(p.getName(), param)) {
                 errorReporter.reportError(
                         "Parameter '" + p.getName() + "' is already declared.",
@@ -604,6 +640,7 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
 
     private boolean registerClass(NodeClassDeclaration node) {
         String className = node.getName();
+        String superClass = node.getSuperClass();
 
         ClassSymbol classSymbol = new ClassSymbol(
                 className,
@@ -621,19 +658,19 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
             return false;
         }
 
-        typeTable.registerClass(className);
+        typeTable.registerClass(className, superClass);
         return true;
     }
 
     private void registerClassMembers(NodeClassDeclaration node) {
         for (ASTNode member : node.getMembers()) {
-            registerMember(member);
+            registerMember(member, node.getSuperClass());
         }
     }
 
-    private void registerMember(ASTNode member) {
+    private void registerMember(ASTNode member, String superClass) {
         if (member instanceof NodeMethodDeclaration method) {
-            registerMethodSignature(method, null);
+            registerMethodSignature(method, superClass);
             return;
         }
 

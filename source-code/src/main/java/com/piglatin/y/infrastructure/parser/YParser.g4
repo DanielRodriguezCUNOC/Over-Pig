@@ -3,27 +3,27 @@ parser grammar YParser;
 options { tokenVocab = YLexer; }
 
 program
-    : NEWLINE* (ESTRUCTURAS_HEADER globalDeclaration*)? FUNCIONES_HEADER NEWLINE* functionDeclaration* EOF
+    : NEWLINE* (ESTRUCTURAS_HEADER NEWLINE* globalDeclaration*)? FUNCIONES_HEADER NEWLINE* functionDeclaration* EOF
     ;
 
 globalDeclaration
-    : ESTRUCTURA ID COLON structBlock                                     #GlobalStructure
+    : structDeclaration NEWLINE*                                          #GlobalStructure
+    ;
+
+structDeclaration
+    : ESTRUCTURA ID COLON structBlock
     ;
 
 structBlock
-    : NEWLINE INDENT (structField NEWLINE*)? DEDENT
+    : NEWLINE* INDENT (structField SEMICOLON? NEWLINE*)+ DEDENT
     ;
 
 structField
-    : type ID (LEFT_BRACKET INTEGER RIGHT_BRACKET)?                      #FieldSimpleOrArray
-    ;
-
-mainInstructions
-    : FUNCIONES_HEADER functionDeclaration*
+    : type ID (LEFT_BRACKET INTEGER RIGHT_BRACKET)?                       #FieldSimpleOrArray
     ;
 
 functionDeclaration
-    : DEFINIR ID LEFT_PAREN parameterList? RIGHT_PAREN (ARROW type)? COLON block
+    : DEFINIR ID LEFT_PAREN parameterList? RIGHT_PAREN (ARROW type)? COLON block NEWLINE*
     ;
 
 parameterList
@@ -37,11 +37,12 @@ parameter
     ;
 
 block
-    : NEWLINE? INDENT (instruction NEWLINE*)+ DEDENT
+    : NEWLINE* INDENT (instruction SEMICOLON? NEWLINE*)+ DEDENT
     ;
 
 instruction
-    : assignment                                                      #InstructionAssignment
+    : structDeclaration                                               #InstructionStructDecl
+    | assignment                                                      #InstructionAssignment
     | printStatement                                                  #InstructionPrint
     | ifStatement                                                     #InstructionIf
     | chooseStatement                                                 #InstructionChoose
@@ -49,8 +50,8 @@ instruction
     | doWhileStatement                                                #InstructionDoWhile
     | forStatement                                                    #InstructionFor
     | jumpStatement                                                   #InstructionJump
-    | variableDeclaration                                             #InstructionDeclaration
     | arrayDeclaration                                                #InstructionArrayDeclaration
+    | variableDeclaration                                             #InstructionDeclaration
     | expression                                                      #InstructionExpression
     ;
 
@@ -58,9 +59,9 @@ variableDeclaration
     : type ID (ASSIGN expression)?
     ;
 
+// entero a[5] = {..}   |   entero m[3][3]
 arrayDeclaration
-    : type ID LEFT_BRACKET expression RIGHT_BRACKET (ASSIGN expression)?
-    | type ID (LEFT_BRACKET expression RIGHT_BRACKET)+
+    : type ID (LEFT_BRACKET expression RIGHT_BRACKET)+ (ASSIGN expression)?
     ;
 
 arrayLiteral
@@ -73,7 +74,7 @@ assignment
     ;
 
 printStatement
-    : IMPRIMIR LEFT_PAREN expression (PLUS expression)* RIGHT_PAREN
+    : IMPRIMIR LEFT_PAREN expression RIGHT_PAREN
     ;
 
 ifStatement
@@ -83,7 +84,7 @@ ifStatement
     ;
 
 chooseStatement
-    : ELEGIR LEFT_PAREN expression RIGHT_PAREN COLON NEWLINE? INDENT (CASO expression COLON block)+ (SIEMPRE COLON block)? DEDENT
+    : ELEGIR LEFT_PAREN expression RIGHT_PAREN COLON NEWLINE* INDENT (CASO expression COLON block)+ (SIEMPRE COLON block)? DEDENT
     ;
 
 whileStatement
@@ -116,19 +117,20 @@ type
     | CARACTER
     | CADENA
     | BOOL_TYPE
-    | ID // For structures
+    | ID // Para estructuras
     ;
 
+// Precedencia: unario, * /, + -, relacionales, &&, ||
 expression
     : primary                                                       #ExprPrimary
+    | arrayLiteral                                                  #ExprArrayLiteral
     | (NOT | MINUS) expression                                      #ExprUnary
     | expression (MULT | DIV) expression                            #ExprMultiplicative
     | expression (PLUS | MINUS) expression                          #ExprAdditive
     | expression (LESS | GREATER | EQUAL | NOTEQUAL) expression     #ExprRelational
-    | expression (AND | OR) expression                              #ExprLogical
-    | arrayLiteral                                                  #ExprArrayLiteral
+    | expression AND expression                                     #ExprAnd
+    | expression OR expression                                      #ExprOr
     ;
-
 
 primary
     : literal                                                       #PrimaryLiteral

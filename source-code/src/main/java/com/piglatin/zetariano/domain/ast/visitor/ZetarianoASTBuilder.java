@@ -64,11 +64,12 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
     public ASTNode visitFieldDeclaration(ZetarianoParser.FieldDeclarationContext ctx) {
         if (ctx == null) return null;
         AccessModifier modifier = parseAccessModifier(ctx.accessModifier());
-        String type = ctx.type().getText();
-        String name = ctx.IDENTIFIER().getText();
-        NodeExpression initializer = ctx.expression() != null ? asExpression(visit(ctx.expression())) : null;
         boolean isArray = ctx.type().LBRACK() != null && !ctx.type().LBRACK().isEmpty();
         int dimensions = isArray ? ctx.type().LBRACK().size() : 0;
+        String type = ctx.type().getText();
+        if (isArray) type = type.replace("[]", "");
+        String name = ctx.IDENTIFIER().getText();
+        NodeExpression initializer = ctx.expression() != null ? asExpression(visit(ctx.expression())) : null;
 
         return new NodeFieldDeclaration(modifier, type, name, initializer, isArray, dimensions, getLine(ctx), getColumn(ctx));
     }
@@ -257,6 +258,54 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
         return new NodeContinue(getLine(ctx), getColumn(ctx));
     }
 
+    /**
+     * expressionStatement SEMI. Sin este visitor ANTLR devuelve el resultado del último hijo
+     * (el token SEMI -> null) y la sentencia se perdía del AST: println(...), x++, llamadas.
+     * println(...)/print(...) sin receptor se convierten en NodePrint.
+     */
+    @Override
+    public ASTNode visitStatementExpression(ZetarianoParser.StatementExpressionContext ctx) {
+        ASTNode expr = visit(ctx.expressionStatement().expression());
+        if (expr instanceof NodeMethodCall call && call.getTarget() == null) {
+            String name = call.getMethodName();
+            if ("println".equals(name) || "print".equals(name)) {
+                List<NodeExpression> args = call.getArguments() != null
+                        ? call.getArguments() : new ArrayList<>();
+                return new NodePrint(args, "println".equals(name), getLine(ctx), getColumn(ctx));
+            }
+        }
+        return expr;
+    }
+
+    @Override
+    public ASTNode visitStatementEmpty(ZetarianoParser.StatementEmptyContext ctx) {
+        return null;
+    }
+
+    /** ++x */
+    @Override
+    public ASTNode visitUnaryPreIncrement(ZetarianoParser.UnaryPreIncrementContext ctx) {
+        NodeExpression target = asExpression(visit(ctx.target()));
+        return new NodeUnaryExpression("++", target, getLine(ctx), getColumn(ctx));
+    }
+
+    /** --x */
+    @Override
+    public ASTNode visitUnaryPreDecrement(ZetarianoParser.UnaryPreDecrementContext ctx) {
+        NodeExpression target = asExpression(visit(ctx.target()));
+        return new NodeUnaryExpression("--", target, getLine(ctx), getColumn(ctx));
+    }
+
+    /** x++ / x--. */
+    @Override
+    public ASTNode visitPostfixExpression(ZetarianoParser.PostfixExpressionContext ctx) {
+        ASTNode primary = visit(ctx.primary());
+        if (ctx.INC() == null && ctx.DEC() == null) return primary;
+        NodeExpression operand = asExpression(primary);
+        String op = ctx.INC() != null ? "++" : "--";
+        return new NodeUnaryExpression(op, operand, getLine(ctx), getColumn(ctx));
+    }
+
     @Override
     public ASTNode visitPrimary(ZetarianoParser.PrimaryContext ctx) {
         ASTNode current = visit(ctx.primaryCore());
@@ -334,6 +383,7 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
     @Override
     public ASTNode visitLiteral(ZetarianoParser.LiteralContext ctx) {
         if (ctx == null) return null;
+        if (ctx.DOUBLE_LITERAL() != null) return new NodeDecimalLiteral(Double.parseDouble(ctx.DOUBLE_LITERAL().getText()), getLine(ctx), getColumn(ctx));
         if (ctx.INT_LITERAL() != null) return new NodeIntegerLiteral(Integer.parseInt(ctx.INT_LITERAL().getText()), getLine(ctx), getColumn(ctx));
         if (ctx.CHAR_LITERAL() != null) return new NodeCharLiteral(parseChar(ctx.CHAR_LITERAL().getText()), getLine(ctx), getColumn(ctx));
         if (ctx.STRING_LITERAL() != null) return new NodeStringLiteral(parseString(ctx.STRING_LITERAL().getText()), getLine(ctx), getColumn(ctx));
@@ -341,6 +391,123 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
         if (ctx.FALSE() != null) return new NodeBooleanLiteral(false, getLine(ctx), getColumn(ctx));
         if (ctx.NULL() != null) return new NodeNullLiteral(getLine(ctx), getColumn(ctx));
         return null;
+    }
+
+    @Override
+    public ASTNode visitExpression(ZetarianoParser.ExpressionContext ctx) {
+        if (ctx == null) return null;
+        return visit(ctx.ternaryExpression());
+    }
+
+    @Override
+    public ASTNode visitTernaryExpression(ZetarianoParser.TernaryExpressionContext ctx) {
+        if (ctx == null) return null;
+        ASTNode cond = visit(ctx.logicalOrExpression());
+        if (ctx.QUESTION() != null) {
+            NodeExpression condition = asExpression(cond);
+            NodeExpression trueExpr = asExpression(visit(ctx.expression()));
+            NodeExpression falseExpr = asExpression(visit(ctx.ternaryExpression()));
+            return new NodeTernaryExpression(condition, trueExpr, falseExpr, getLine(ctx), getColumn(ctx));
+        }
+        return cond;
+    }
+
+    @Override
+    public ASTNode visitLogicalOrExpression(ZetarianoParser.LogicalOrExpressionContext ctx) {
+        if (ctx == null) return null;
+        ASTNode current = visit(ctx.logicalAndExpression(0));
+        for (int i = 1; i < ctx.logicalAndExpression().size(); i++) {
+            NodeExpression left = asExpression(current);
+            NodeExpression right = asExpression(visit(ctx.logicalAndExpression(i)));
+            current = new NodeBinaryExpression(left, "||", right, getLine(ctx), getColumn(ctx));
+        }
+        return current;
+    }
+
+    @Override
+    public ASTNode visitLogicalAndExpression(ZetarianoParser.LogicalAndExpressionContext ctx) {
+        if (ctx == null) return null;
+        ASTNode current = visit(ctx.equalityExpression(0));
+        for (int i = 1; i < ctx.equalityExpression().size(); i++) {
+            NodeExpression left = asExpression(current);
+            NodeExpression right = asExpression(visit(ctx.equalityExpression(i)));
+            current = new NodeBinaryExpression(left, "&&", right, getLine(ctx), getColumn(ctx));
+        }
+        return current;
+    }
+
+    @Override
+    public ASTNode visitEqualityExpression(ZetarianoParser.EqualityExpressionContext ctx) {
+        if (ctx == null) return null;
+        ASTNode current = visit(ctx.relationalExpression(0));
+        int relIdx = 1;
+        for (int i = 0; i < ctx.getChildCount() - 1; i += 2) {
+            String op = ctx.getChild(i + 1).getText();
+            NodeExpression left = asExpression(current);
+            NodeExpression right = asExpression(visit(ctx.relationalExpression(relIdx++)));
+            current = new NodeBinaryExpression(left, op, right, getLine(ctx), getColumn(ctx));
+        }
+        return current;
+    }
+
+    @Override
+    public ASTNode visitRelationalExpression(ZetarianoParser.RelationalExpressionContext ctx) {
+        if (ctx == null) return null;
+        ASTNode current = visit(ctx.additiveExpression(0));
+        int addIdx = 1;
+        for (int i = 0; i < ctx.getChildCount() - 1; i += 2) {
+            String op = ctx.getChild(i + 1).getText();
+            NodeExpression left = asExpression(current);
+            NodeExpression right = asExpression(visit(ctx.additiveExpression(addIdx++)));
+            current = new NodeBinaryExpression(left, op, right, getLine(ctx), getColumn(ctx));
+        }
+        return current;
+    }
+
+    @Override
+    public ASTNode visitAdditiveExpression(ZetarianoParser.AdditiveExpressionContext ctx) {
+        if (ctx == null) return null;
+        ASTNode current = visit(ctx.multiplicativeExpression(0));
+        int multIdx = 1;
+        for (int i = 0; i < ctx.getChildCount() - 1; i += 2) {
+            String op = ctx.getChild(i + 1).getText();
+            NodeExpression left = asExpression(current);
+            NodeExpression right = asExpression(visit(ctx.multiplicativeExpression(multIdx++)));
+            current = new NodeBinaryExpression(left, op, right, getLine(ctx), getColumn(ctx));
+        }
+        return current;
+    }
+
+    @Override
+    public ASTNode visitMultiplicativeExpression(ZetarianoParser.MultiplicativeExpressionContext ctx) {
+        if (ctx == null) return null;
+        ASTNode current = visit(ctx.unaryExpression(0));
+        int unaryIdx = 1;
+        for (int i = 0; i < ctx.getChildCount() - 1; i += 2) {
+            String op = ctx.getChild(i + 1).getText();
+            NodeExpression left = asExpression(current);
+            NodeExpression right = asExpression(visit(ctx.unaryExpression(unaryIdx++)));
+            current = new NodeBinaryExpression(left, op, right, getLine(ctx), getColumn(ctx));
+        }
+        return current;
+    }
+
+    @Override
+    public ASTNode visitUnaryPlus(ZetarianoParser.UnaryPlusContext ctx) {
+        NodeExpression expr = asExpression(visit(ctx.unaryExpression()));
+        return new NodeUnaryExpression("+", expr, getLine(ctx), getColumn(ctx));
+    }
+
+    @Override
+    public ASTNode visitUnaryMinus(ZetarianoParser.UnaryMinusContext ctx) {
+        NodeExpression expr = asExpression(visit(ctx.unaryExpression()));
+        return new NodeUnaryExpression("-", expr,  getLine(ctx), getColumn(ctx));
+    }
+
+    @Override
+    public ASTNode visitUnaryNot(ZetarianoParser.UnaryNotContext ctx) {
+        NodeExpression expr = asExpression(visit(ctx.unaryExpression()));
+        return new NodeUnaryExpression("!", expr,  getLine(ctx), getColumn(ctx));
     }
 
     private String parseString(String text) {

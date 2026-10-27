@@ -5,20 +5,16 @@ import com.piglatin.common.application.ports.input.CompilerUseCase;
 import com.piglatin.common.application.ports.input.ExecutionCCode;
 import com.piglatin.ui.infrastructure.facade.dto.*;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 public class LanguageCompilerFacadeImpl implements LanguajeCompilerFacade {
 
     private final CompilerUseCase compilerUseCase;
-    private final ExecutionCCode executionCCode;
+    // Aqui deberia de ir la interfaz de ejecucion de RISC-V XD
 
-    public LanguageCompilerFacadeImpl(CompilerUseCase compilerUseCase, ExecutionCCode executionCCode) {
+    public LanguageCompilerFacadeImpl(CompilerUseCase compilerUseCase) {
         this.compilerUseCase = compilerUseCase;
-        this.executionCCode = executionCCode;
     }
 
     @Override
@@ -101,42 +97,27 @@ public class LanguageCompilerFacadeImpl implements LanguajeCompilerFacade {
             }
         }
 
+        GeneretedCodeDTO generated = response.getGeneratedCode();
+
         return new CompilationResultDTO(
                 response.isSuccess(),
                 symbolDTOs,
                 typeDTOs,
                 scopeDTOs,
                 errorDTOs,
-                response.getExecutionOutput()
+                response.getExecutionOutput(),
+                generated != null ? generated.getC3dFilePath() : null,
+                generated != null ? generated.getAsmFilePath() : null
         );
     }
 
     @Override
-    public Process startInteractiveExecution(
+    public CompilationResultDTO generateCode(
             String sourceCode,
             String fileExtension,
             String projectDirectory,
             String currentFileName
-    ) throws IOException {
-
-        CompilationResultDTO result = compileCode(
-                sourceCode, fileExtension, projectDirectory, currentFileName,
-                CompilationMode.C_CODE_ONLY);
-
-        if (!result.isSuccessful()) {
-            throw new IOException("Compilación falló. Revisa la tabla de errores.");
-        }
-
-        String baseName = currentFileName;
-        if (baseName.contains(".")) {
-            baseName = baseName.substring(0, baseName.lastIndexOf('.'));
-        }
-        Path cFile = Path.of(projectDirectory, baseName + ".c");
-        if (!Files.exists(cFile)) {
-            throw new IOException("No se generó " + cFile);
-        }
-        String cCode = Files.readString(cFile);
-
-        return executionCCode.startInteractive(cCode, "main", projectDirectory);
+    ) {
+        return compileCode(sourceCode, fileExtension, projectDirectory, currentFileName, CompilationMode.FULL);
     }
 }

@@ -50,10 +50,6 @@ public class PigLatinTypeChecker implements Visitor<String> {
         this.constantFolder = new PigLatinConstantFolder(errorReporter, symbolTable);
     }
 
-    // ============================================================
-    // PROGRAM
-    // ============================================================
-
     @Override
     public String visitProgram(NodeProgram n) {
         this.hasImports = n.getImports() != null && !n.getImports().isEmpty();
@@ -70,10 +66,6 @@ public class PigLatinTypeChecker implements Visitor<String> {
         }
         return null;
     }
-
-    // ============================================================
-    // STATEMENTS
-    // ============================================================
 
     @Override
     public String visitVariableDeclaration(NodeVariableDeclaration n) {
@@ -127,7 +119,7 @@ public class PigLatinTypeChecker implements Visitor<String> {
                 String valType = valNode.accept(this);
                 if (valType != null && !areTypesCompatible(elementType, valType)) {
                     errorReporter.reportError("Incompatible array element type: expected '" +
-                            elementType + "' but found '" + valType + "'",
+                                    elementType + "' but found '" + valType + "'",
                             valNode.getLine(), valNode.getColumn());
                 }
             }
@@ -138,11 +130,6 @@ public class PigLatinTypeChecker implements Visitor<String> {
         symbolTable.declare(n.getIdentifier(), symbol);
         return null;
     }
-
-
-    // ============================================================
-    // INSTRUCTIONS
-    // ============================================================
 
     @Override
     public String visitAssignment(NodeAssignment n) {
@@ -281,10 +268,6 @@ public class PigLatinTypeChecker implements Visitor<String> {
         return n.getClassName();
     }
 
-    // ============================================================
-    // LVALUE
-    // ============================================================
-
     @Override
     public String visitLvalue(NodeLvalue n) {
         return null;
@@ -320,10 +303,6 @@ public class PigLatinTypeChecker implements Visitor<String> {
         return typeTable.getArrayElementType(arrayType);
     }
 
-    // ============================================================
-    // EXPRESSIONS
-    // ============================================================
-
     @Override
     public String visitIntegerLiteral(NodeIntegerLiteral n) {
         return "NUMERUS";
@@ -353,6 +332,27 @@ public class PigLatinTypeChecker implements Visitor<String> {
     public String visitIdentifier(NodeIdentifier n) {
         Symbol sym = symbolTable.lookup(n.getId());
         return sym != null ? sym.getType() : "ERROR";
+    }
+
+    @Override
+    public String visitNullLiteral(NodeNullLiteral n) {
+        return null;
+    }
+
+    @Override
+    public String visitMethodCall(NodeMethodCall n) {
+        ASTNode target = n.getTarget();
+        if (target instanceof NodeFieldAccess fieldAccess) {
+            if (fieldAccess.getCurrentNode() != null) fieldAccess.getCurrentNode().accept(this);
+        } else if (target != null && !(target instanceof NodeIdentifier)) {
+            target.accept(this);
+        }
+        if (n.getArguments() != null) {
+            for (ASTNode argument : n.getArguments()) {
+                if (argument != null) argument.accept(this);
+            }
+        }
+        return null;
     }
 
     @Override
@@ -499,10 +499,6 @@ public class PigLatinTypeChecker implements Visitor<String> {
         return null;
     }
 
-    // ============================================================
-    // AUXILIARY METHODS
-    // ============================================================
-
     private String normalizeType(String type) {
         if ("bool".equals(type) || "BOOLEAN".equals(type)) return "BOOL";
         return type;
@@ -517,28 +513,24 @@ public class PigLatinTypeChecker implements Visitor<String> {
         return "NUMERUS".equals(type) || "DECIMALIS".equals(type) || "LITTERA".equals(type);
     }
 
-    /**
-     * Checks if two types are compatible for assignment/comparison.
-     * Rules:
-     *  - Same type -> compatible.
-     *  - NUMERUS and DECIMALIS -> compatible -> implicit promotion.
-     */
     private boolean areTypesCompatible(String expected, String actual) {
         if (expected == null || actual == null) return true;
         if (expected.equals(actual)) return true;
 
-        //* Numerical promotion
         if (("NUMERUS".equals(expected) && "DECIMALIS".equals(actual)) ||
                 ("DECIMALIS".equals(expected) && "NUMERUS".equals(actual))) {
             return true;
         }
 
-        //* Booleans: all boolean types are compatible.
         if (isBooleanType(expected) && isBooleanType(actual)) {
             return true;
         }
 
-        //* Arrays: compatible if the elements are compatible.
+        //* Polimorfismo con clases de Zetariano: una subclase es asignable a su superclase
+        if (typeTable.isSubtypeOf(actual, expected)) {
+            return true;
+        }
+
         if (expected.startsWith("SERIES_") && actual.startsWith("SERIES_")) {
             String expectedElem = expected.substring(7);
             String actualElem = actual.substring(7);
@@ -552,7 +544,6 @@ public class PigLatinTypeChecker implements Visitor<String> {
         return name + "(" + String.join(",", paramTypes) + ")";
     }
 
-    // Stack operations using List
     private void pushReturn(String type) {
         functionReturnStack.add(type);
     }

@@ -3,7 +3,9 @@ package com.piglatin.piglatin.domain.types;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -16,9 +18,13 @@ public class PigLatinTypeTable {
     private final Set<String> primitiveTypes;
     private final Set<String> customTypes;
 
+    /** Herencia de clases importadas de Zetariano: clase -> superclase. */
+    private final Map<String, String> inheritanceMap;
+
     public PigLatinTypeTable() {
         this.primitiveTypes = new HashSet<>();
         this.customTypes = new HashSet<>();
+        this.inheritanceMap = new HashMap<>();
         preloadPrimitives();
     }
 
@@ -69,5 +75,23 @@ public class PigLatinTypeTable {
         }
     }
 
-}
+    /** Registra la relación de herencia (hijo -> padre) de una clase importada. */
+    public void registerInheritance(String subType, String superType) {
+        if (subType == null || superType == null || subType.isBlank() || superType.isBlank()) return;
+        inheritanceMap.put(subType, superType);
+    }
 
+    /** true si subType es igual a superType o hereda de él (directa o indirectamente). */
+    public boolean isSubtypeOf(String subType, String superType) {
+        if (subType == null || superType == null) return false;
+        if (subType.equals(superType)) return true;
+        Set<String> visited = new HashSet<>();
+        String current = inheritanceMap.get(subType);
+        while (current != null && visited.add(current)) {
+            if (current.equals(superType)) return true;
+            current = inheritanceMap.get(current);
+        }
+        return false;
+    }
+
+}

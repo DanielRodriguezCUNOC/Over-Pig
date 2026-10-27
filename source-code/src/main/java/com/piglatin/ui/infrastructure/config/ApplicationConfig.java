@@ -1,7 +1,6 @@
 package com.piglatin.ui.infrastructure.config;
 
 import com.piglatin.common.application.ports.input.CompilerUseCase;
-import com.piglatin.common.application.ports.input.ExecutionCCode;
 import com.piglatin.common.application.ports.output.ErrorReporter;
 import com.piglatin.common.application.ports.output.Logger;
 import com.piglatin.common.application.ports.output.ResultExporter;
@@ -9,12 +8,11 @@ import com.piglatin.common.application.services.CompileManager;
 import com.piglatin.common.application.dto.LanguageType;
 import com.piglatin.common.infrastructure.adapters.ErrorCollector;
 import com.piglatin.common.infrastructure.adapters.FileResultExporter;
-import com.piglatin.common.infrastructure.adapters.GCCCodeExecutor;
 import com.piglatin.common.infrastructure.adapters.LoggerAdapter;
 import com.piglatin.piglatin.application.services.PigLatinCompiler;
 import com.piglatin.piglatin.application.services.PigLatinSemanticAnalyzer;
 import com.piglatin.piglatin.application.services.PigLatinTreeMapperService;
-import com.piglatin.piglatin.infrastructure.parser.PigLatinServiceAnalyzer;
+import com.piglatin.piglatin.application.services.PigLatinServiceAnalyzer;
 import com.piglatin.y.application.services.YCompiler;
 import com.piglatin.zetariano.application.services.ZetarianoCompiler;
 
@@ -37,8 +35,6 @@ public class ApplicationConfig {
         ResultExporter resultExporter =
                 new FileResultExporter("output");
 
-        ExecutionCCode executionCCode =
-                new GCCCodeExecutor();
 
         /*
          * PigLatin compiler
@@ -87,12 +83,8 @@ public class ApplicationConfig {
                 compilers,
                 errorReporter,
                 resultExporter,
-                executionCCode,
+                null,
                 logger
         );
-    }
-
-    public static ExecutionCCode createExecutionCCode() {
-        return new GCCCodeExecutor();
     }
 }

@@ -9,12 +9,12 @@ import com.piglatin.common.application.ports.output.ResultExporter;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * This class coordinates the output ports
- * Execute the generate code
+ * This class coordinates the output ports.
  */
 @RequiredArgsConstructor
 public class CompileManager implements CompilerUseCase {
@@ -42,13 +42,7 @@ public class CompileManager implements CompilerUseCase {
 
         if (!responseDTO.isSuccess() || errorReporter.hasFatalErrors()) {
 
-            List<CompilationErrorDTO> merged = new ArrayList<>();
-            if (responseDTO.getErrors() != null) {
-                merged.addAll(responseDTO.getErrors());
-            }
-            if (errorReporter.getErrors() != null) {
-                merged.addAll(errorReporter.getErrors());
-            }
+            List<CompilationErrorDTO> merged = mergeErrors(responseDTO.getErrors(), errorReporter.getErrors());
 
             logger.warn("Compilation failed. Errors detected: " + merged.size());
             responseDTO.setSuccess(false);
@@ -58,12 +52,10 @@ public class CompileManager implements CompilerUseCase {
         }
 
         if (shouldExport(request.getMode())) exportResult(responseDTO, request);
-        if (request.getMode() == CompilationMode.FULL &&
-                responseDTO.getGeneratedCode() != null) executeGeneratedCode(responseDTO);
 
         responseDTO.setCompilationTimeMs(System.currentTimeMillis() - startTime);
         logger.info("Finished compilation for the language: " + request.getLanguageType() +
-                " in" + responseDTO.getCompilationTimeMs() + " ms");
+                " in " + responseDTO.getCompilationTimeMs() + " ms");
         return responseDTO;
     }
 
@@ -72,9 +64,23 @@ public class CompileManager implements CompilerUseCase {
     }
 
     private boolean shouldExport (CompilationMode mode) {
-        return (mode == CompilationMode.C3D_ONLY
-                || mode == CompilationMode.C_CODE_ONLY
-                || mode == CompilationMode.FULL);
+        return mode != null && mode != CompilationMode.VALIDATE_ONLY;
+    }
+
+    private List<CompilationErrorDTO> mergeErrors(List<CompilationErrorDTO> fromResponse,
+                                                  List<CompilationErrorDTO> fromReporter) {
+        Map<String, CompilationErrorDTO> unique = new LinkedHashMap<>();
+        addUnique(unique, fromResponse);
+        addUnique(unique, fromReporter);
+        return new ArrayList<>(unique.values());
+    }
+
+    private void addUnique(Map<String, CompilationErrorDTO> target, List<CompilationErrorDTO> source) {
+        if (source == null) return;
+        for (CompilationErrorDTO e : source) {
+            String key = e.getStage() + "|" + e.getLine() + "|" + e.getColumn() + "|" + e.getMessage();
+            target.putIfAbsent(key, e);
+        }
     }
 
     private void exportResult (CompileResponseDTO response, CompileRequestDTO request) {
@@ -99,39 +105,33 @@ public class CompileManager implements CompilerUseCase {
         try {
             if (generated.getC3dCode() != null && !generated.getC3dCode().isBlank()) {
                 String c3dPath = resultExporter.export3DC(generated.getC3dCode(), baseName);
+                generated.setC3dFilePath(c3dPath);
                 logger.info("3DC exported to: " + c3dPath);
             }
 
-            if (generated.getCCode() != null && !generated.getCCode().isBlank()) {
-                String cPath = resultExporter.exportC(generated.getCCode(), baseName);
-                logger.info("C code exported to: " + cPath);
-            }
+            if (generated.getAsmCode() != null && !generated.getAsmCode().isBlank()) {
+                String asmPath = resultExporter.exportAsm(generated.getAsmCode(), baseName);
+                generated.setAsmFilePath(asmPath);
+                logger.info("RISC-V exported to: " + asmPath);
 
+                String runtimePath = resultExporter.exportRuntime();
+                if (runtimePath != null) {
+                    logger.info("Runtime available at: " + runtimePath);
+                } else {
+                    logger.warn("runtime.asm not found. Put it in src/main/resources/riscv/runtime.asm "
+                            + "or next to the generated .asm, otherwise RARS will fail on .include");
+                }
+            }
         } catch (Exception e) {
             logger.error("Error exporting results", e);
-        }
-    }
-
-    private void executeGeneratedCode (CompileResponseDTO response) {
-        GeneretedCodeDTO generated = response.getGeneratedCode();
-        if (generated == null || generated.getCCode() == null) return;
-        try {
-           ExecutionResponse exec = executionCCode.execute(
-                   generated.getCCode(),
-                   generated.getEntryPoint() != null ? generated.getEntryPoint() : "main");
-
-           String combined = exec.getStandardOutput();
-           if (exec.getStandardError() != null && !exec.getStandardError().isBlank()) {
-               combined = (combined == null ? "" : combined)
-                        + "\n--- stderr ---\n" + exec.getStandardError();
-           }
-           response.setExecutionOutput(combined);
-
-           if (!exec.isSuccess()){
-               logger.error("Error executing generated code: " + exec.getStandardError());
-           }
-        }catch (Exception e) {
-            logger.error("Error during execution of generated code", e);
+            List<CompilationErrorDTO> errors = new ArrayList<>();
+            if (response.getErrors() != null) errors.addAll(response.getErrors());
+            errors.add(new CompilationErrorDTO(
+                    CompilationStage.C3D_GENERATION,
+                    "Could not write the generated files: " + e.getMessage(),
+                    0, 0, request.getFileName()));
+            response.setErrors(errors);
+            response.setSuccess(false);
         }
     }
 

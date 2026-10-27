@@ -1,6 +1,5 @@
 package com.piglatin.piglatin.domain.ast.nodes.instruction;
 
-import com.piglatin.piglatin.domain.ast.nodes.lvalue.NodeLvalue;
 import com.piglatin.piglatin.domain.ast.principal.ASTNode;
 import com.piglatin.piglatin.domain.ast.visitor.Visitor;
 import lombok.Getter;
@@ -14,8 +13,7 @@ import lombok.Setter;
 @Setter
 public class NodeRead extends ASTNode {
 
-    //* The target where the read value
-    private NodeLvalue target;
+    private ASTNode target;
 
     public NodeRead() {
         this(null, 0, 0);
@@ -25,7 +23,7 @@ public class NodeRead extends ASTNode {
         this(null, line, column);
     }
 
-    public NodeRead(NodeLvalue target, int line, int column) {
+    public NodeRead(ASTNode target, int line, int column) {
         super(line, column);
         this.target = target;
     }

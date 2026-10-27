@@ -7,6 +7,9 @@ import com.piglatin.y.domain.ast.statements.*;
 import com.piglatin.y.infrastructure.parser.generated.YParser;
 import com.piglatin.y.infrastructure.parser.generated.YParserBaseVisitor;
 
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,20 +42,32 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
     //?     STRUCTS
     //*********************
 
+    //* Global struct (%estructuras): delegates to the shared structDeclaration rule.
     @Override
     public ASTNode visitGlobalStructure(YParser.GlobalStructureContext ctx) {
+        return visit(ctx.structDeclaration());
+    }
+
+    //* Struct declared inside a function body. It ends up as a NodeStructureDefinition
+    //* inside the NodeBlock; YSymbolTableBuilder / YTypeChecker already handle it
+    //* through visitStructureDefinition().
+    @Override
+    public ASTNode visitInstructionStructDecl(YParser.InstructionStructDeclContext ctx) {
+        return visit(ctx.structDeclaration());
+    }
+
+    //* Shared by global and local structs.
+    @Override
+    public ASTNode visitStructDeclaration(YParser.StructDeclarationContext ctx) {
         int line = ctx.getStart().getLine();
         int column = ctx.getStart().getCharPositionInLine();
         String structName = ctx.ID().getText();
 
         List<NodeFieldDeclaration> fields = new ArrayList<>();
-
-        if (ctx.structBlock() != null && ctx.structBlock().structField() != null) {
-            for (YParser.StructFieldContext fCtx : ctx.structBlock().getRuleContexts(YParser.StructFieldContext.class)) {
-                fields.add((NodeFieldDeclaration) visit(fCtx));
-            }
+        for (YParser.StructFieldContext fCtx : ctx.structBlock().structField()) {
+            fields.add((NodeFieldDeclaration) visit(fCtx));
         }
-        return  new NodeStructureDefinition(structName, fields, line, column);
+        return new NodeStructureDefinition(structName, fields, line, column);
     }
 
     @Override
@@ -62,7 +77,8 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
         String type = ctx.type().getText();
         String name = ctx.ID().getText();
         boolean isArray = ctx.LEFT_BRACKET() != null;
-        Integer size = (isArray && ctx.INTEGER() != null) ? Integer.parseInt(ctx.INTEGER().getText()) : null;
+        //* NodeFieldDeclaration.arraySize is a primitive int: 0 means "not an array"
+        int size = (isArray && ctx.INTEGER() != null) ? Integer.parseInt(ctx.INTEGER().getText()) : 0;
 
         return new NodeFieldDeclaration(type, name, isArray, size, line, col);
     }
@@ -255,11 +271,10 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
     public ASTNode visitPrintStatement(YParser.PrintStatementContext ctx) {
         int line = ctx.getStart().getLine();
         int col = ctx.getStart().getCharPositionInLine();
+        //* The grammar now has a single expression ("a" + b + c is already one
+        //* additive expression), so NodePrint always holds exactly one element.
         List<ASTNode> expressions = new ArrayList<>();
-
-        for (YParser.ExpressionContext eCtx : ctx.expression()) {
-            expressions.add(visit(eCtx));
-        }
+        expressions.add(visit(ctx.expression()));
 
         return new NodePrint(expressions, line, col);
     }
@@ -357,21 +372,25 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
         int line = ctx.getStart().getLine();
         int col = ctx.getStart().getCharPositionInLine();
 
+        //* Every part of the header is optional, so the position relative to the
+        //* ';' separators decides what is the initializer and what is the update
+        //* (for(; i < n; i++) must NOT take "i++" as the initializer).
         ASTNode init = null;
-        if (ctx.variableDeclaration() != null) {
-            init = visit(ctx.variableDeclaration());
-        } else if (ctx.assignment(0) != null) {
-            init = visit(ctx.assignment(0));
+        ASTNode increment = null;
+        int semicolons = 0;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            if (ctx.getChild(i) instanceof TerminalNode t) {
+                if (t.getSymbol().getType() == YParser.SEMICOLON) semicolons++;
+            } else if (semicolons == 0
+                    && (ctx.getChild(i) instanceof YParser.VariableDeclarationContext
+                    || ctx.getChild(i) instanceof YParser.AssignmentContext)) {
+                init = visit(ctx.getChild(i));
+            } else if (semicolons == 2 && ctx.getChild(i) instanceof YParser.AssignmentContext) {
+                increment = visit(ctx.getChild(i));
+            }
         }
 
         ASTNode condition = ctx.expression() != null ? visit(ctx.expression()) : null;
-
-        ASTNode increment = null;
-        if (ctx.variableDeclaration() != null && ctx.assignment(0) != null) {
-            increment = visit(ctx.assignment(0));
-        } else if (ctx.variableDeclaration() == null && ctx.assignment().size() > 1) {
-            increment = visit(ctx.assignment(1));
-        }
 
         NodeBlock body = (NodeBlock) visit(ctx.block());
 
@@ -426,14 +445,18 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
     }
 
     @Override
-    public ASTNode visitExprLogical(YParser.ExprLogicalContext ctx) {
-        int line = ctx.getStart().getLine();
-        int col = ctx.getStart().getCharPositionInLine();
-        ASTNode left = visit(ctx.expression(0));
-        ASTNode right = visit(ctx.expression(1));
-        String op = ctx.getChild(1).getText();
+    public ASTNode visitExprAnd(YParser.ExprAndContext ctx) {
+        return binary(ctx, ctx.expression(0), ctx.expression(1), "&&");
+    }
 
-        return new NodeBinaryOperation(op, left, right, line, col);
+    @Override
+    public ASTNode visitExprOr(YParser.ExprOrContext ctx) {
+        return binary(ctx, ctx.expression(0), ctx.expression(1), "||");
+    }
+
+    private ASTNode binary(ParserRuleContext ctx, ParserRuleContext l, ParserRuleContext r, String op) {
+        return new NodeBinaryOperation(op, visit(l), visit(r),
+                ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
     }
 
     @Override
@@ -556,7 +579,7 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
             return new NodeFloatLiteral(Double.parseDouble(ctx.FLOAT().getText()), line, col);
         } else if (ctx.CHAR() != null) {
             String raw = ctx.CHAR().getText();
-            char charVal = raw.length() >= 3 ? raw.charAt(1) : '\0';
+            char charVal = parseChar(raw);
             return new NodeCharLiteral(charVal, line, col);
         } else if (ctx.STRING() != null) {
             String raw = ctx.STRING().getText();
@@ -569,5 +592,19 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
         }
 
         return null;
+    }
+
+    //* 'a'  ->  a      '\n' -> newline      '\'' -> '
+    private char parseChar(String raw) {
+        if (raw.length() >= 4 && raw.charAt(1) == '\\') {
+            return switch (raw.charAt(2)) {
+                case 'n' -> '\n';
+                case 't' -> '\t';
+                case 'r' -> '\r';
+                case '0' -> '\0';
+                default -> raw.charAt(2);
+            };
+        }
+        return raw.length() >= 3 ? raw.charAt(1) : '\0';
     }
 }

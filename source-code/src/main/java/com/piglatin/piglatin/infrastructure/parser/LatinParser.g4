@@ -49,6 +49,8 @@ instruction
 declaration
     : ESTO ID COLON type (expression)? SEMICOLON?                       #DeclStandard
     | ESTO ID COLON expression COLON type SEMICOLON?                    #DeclExplicitType
+    | ESTO ID COLON newInstance SEMICOLON?                              #DeclNewInstance
+    | ESTO ID COLON booleanLiteral SEMICOLON?                           #DeclBoolean
     ;
 
 arrayDeclaration
@@ -109,7 +111,7 @@ jumpStatement
 
 // Object instantiation
 newInstance
-    : NOVUS ID LEFT_PAREN argumentList? RIGHT_PAREN (COLON type)?
+    : NOVUS ID LEFT_PAREN argumentList? RIGHT_PAREN
     ;
 
 // Read statement
@@ -191,6 +193,7 @@ comparisonOperand
     : numericExpression                                                         #CompNumeric
     | booleanLiteral                                                            #CompBoolean
     | stringExpression                                                          #CompString
+    | NULL                                                                      #CompNull
     ;
 
 relationalOp

@@ -228,7 +228,8 @@ expressionList
     ;
 
 literal
-    : INT_LITERAL
+    : DOUBLE_LITERAL
+    | INT_LITERAL
     | CHAR_LITERAL
     | STRING_LITERAL
     | TRUE

@@ -1,8 +1,14 @@
 package com.piglatin.zetariano.domain.symboltable;
 
-import java.util.*;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
+import lombok.Setter;
 
+import java.util.*;
+@Setter
 public class ZetarianoSymbolTable {
+
+
+    private ZetarianoTypeTable typeTable;
     private final Deque<Map<String, Symbol>> scopes = new ArrayDeque<>();
     private final Map<String, Map<String, MethodSymbol>> classMethods = new HashMap<>();
 
@@ -22,6 +28,10 @@ public class ZetarianoSymbolTable {
     public void popScope() {
         if (scopes.size() > 1) {
             scopes.pop();
+            if (!scopeNames.isEmpty()) {
+                //! Tronarse the scope name XD
+                scopeNames.pop();
+            }
         }
     }
 
@@ -45,8 +55,18 @@ public class ZetarianoSymbolTable {
     }
 
     public Symbol lookup(String name) {
+        //* Search in the scope local stack
         for (Map<String, Symbol> scope : scopes) {
             if (scope.containsKey(name)) return scope.get(name);
+        }
+
+        //* If isn't local, search in the class fields of the current class scope
+        for (String sName : scopeNames) {
+            if (sName != null && sName.startsWith(("class_"))) {
+                String className = sName.substring("class_".length());
+                Symbol field = lookupField(className, name);
+                if (field != null) return field;
+            }
         }
         return null;
     }
@@ -58,15 +78,40 @@ public class ZetarianoSymbolTable {
     }
 
     public boolean existsMethod(String className, String methodName) {
-        Map<String, MethodSymbol> methods = classMethods.get(className);
-        if (methods == null) return false;
-        return methods.keySet().stream().anyMatch(k -> k.startsWith(methodName + "/"));
+        String current = className;
+        Set<String> visited = new HashSet<>();
+        while (current != null && visited.add(current)) {
+            Map<String, MethodSymbol> methods = classMethods.get(current);
+            if (methods != null) {
+                if (methods.keySet().stream().anyMatch(k -> k.startsWith(methodName + "/"))) {
+                    return true;
+                }
+            }
+            if (typeTable != null) {
+                current = typeTable.getInheritanceMap().get(current);
+            } else {
+                break;
+            }
+        }
+        return false;
     }
 
     public MethodSymbol lookupMethod(String className, String methodName, int arity) {
-        Map<String, MethodSymbol> methods = classMethods.get(className);
-        if (methods == null) return null;
-        return methods.get(methodName + "/" + arity);
+        String current = className;
+        Set<String> visited = new HashSet<>();
+        while (current != null && visited.add(current)) {
+            Map<String, MethodSymbol> methods = classMethods.get(current);
+            if (methods != null) {
+                MethodSymbol m = methods.get(methodName + "/" + arity);
+                if (m != null) return m;
+            }
+            if (typeTable != null) {
+                current = typeTable.getInheritanceMap().get(current);
+            } else {
+                break;
+            }
+        }
+        return null;
     }
 
     public void declareField(String className, String fieldName, Symbol s) {
@@ -74,9 +119,20 @@ public class ZetarianoSymbolTable {
     }
 
     public Symbol lookupField(String className, String fieldName) {
-        Map<String, Symbol> fields = classFields.get(className);
-        if (fields == null) return null;
-        return fields.get(fieldName);
+        String current = className;
+        Set<String> visited = new HashSet<>();
+        while (current != null && visited.add(current)) {
+            Map<String, Symbol> fields = classFields.get(current);
+            if(fields != null && fields.containsKey(fieldName)) {
+                return fields.get(fieldName);
+            }
+            if (typeTable != null) {
+                current = typeTable.getInheritanceMap().get(current);
+            } else {
+                break;
+            }
+        }
+        return null;
     }
 
     public boolean hasAnyConstructor(String className) {
@@ -96,4 +152,5 @@ public class ZetarianoSymbolTable {
     public Map<String, Symbol> getClassFields(String className) {
         return classFields.get(className);
     }
+
 }
