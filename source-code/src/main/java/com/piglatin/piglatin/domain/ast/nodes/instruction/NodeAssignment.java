@@ -1,6 +1,5 @@
 package com.piglatin.piglatin.domain.ast.nodes.instruction;
 
-import com.piglatin.piglatin.domain.ast.nodes.lvalue.NodeLvalue;
 import com.piglatin.piglatin.domain.ast.principal.ASTNode;
 import com.piglatin.piglatin.domain.ast.visitor.Visitor;
 import lombok.Getter;
@@ -14,11 +13,7 @@ import lombok.Setter;
 @Setter
 public class NodeAssignment extends ASTNode {
 
-    /**
-     * The left-hand side of the assigment
-     * This is the target where the value will be stored
-     */
-    private NodeLvalue lvalue;
+    private ASTNode lvalue;
 
     /**
      * The right-hand side of the assigment
@@ -34,7 +29,7 @@ public class NodeAssignment extends ASTNode {
         this(null, null, line, column);
     }
 
-    public NodeAssignment(NodeLvalue lvalue, ASTNode expression, int line, int column) {
+    public NodeAssignment(ASTNode lvalue, ASTNode expression, int line, int column) {
         super(line, column);
         this.lvalue = lvalue;
         this.expression = expression;

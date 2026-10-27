@@ -177,6 +177,7 @@ public class CodeEditorView extends JFrame {
                 saveCurrentFileAction(), ctrlS, JComponent.WHEN_IN_FOCUSED_WINDOW);
     }
 
+    /** Execute: semántica + C3D + RISC-V (exporta .3d y .asm). Aún no ejecuta en RARS. */
     private void onRunClicked(ActionEvent e) {
         executePipeline(CompilationMode.FULL);
     }
@@ -385,6 +386,7 @@ public class CodeEditorView extends JFrame {
         if (btnCompile != null) btnCompile.addActionListener(this::onCompileClicked);
     }
 
+    /** Compile: solo análisis (léxico, sintáctico, semántico). No genera C3D ni RISC-V. */
     private void onCompileClicked(ActionEvent e) {
         executePipeline(CompilationMode.VALIDATE_ONLY);
     }
@@ -413,23 +415,19 @@ public class CodeEditorView extends JFrame {
 
         String projectDir = activeFile.getParent();
 
-        if (mode == CompilationMode.FULL) {
+        boolean generateCode = (mode == CompilationMode.FULL);
 
-            try {
-                Process process = compilerFacade.startInteractiveExecution(
-                        code, extension, projectDir, fileName);
-                TerminalDialog dialog = new TerminalDialog(this, process);
-                dialog.setVisible(true);
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this,
-                        "Error al ejecutar: " + ex.getMessage(),
-                        "Error", JOptionPane.ERROR_MESSAGE);
-            }
+        CompilationResultDTO result;
+        try {
+            result = generateCode
+                    ? compilerFacade.generateCode(code, extension, projectDir, fileName)
+                    : compilerFacade.compileCode(code, extension, projectDir, fileName, mode);
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Unsupported file type: " + fileName + "\nUse .pig, .z or .y files.",
+                    "Warning", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
-        CompilationResultDTO result = compilerFacade.compileCode(
-                code, extension, projectDir, fileName, mode);
 
         renderSymbolTable(result.symbols());
         renderTypesTable(result.types());
@@ -444,9 +442,23 @@ public class CodeEditorView extends JFrame {
             return;
         }
 
+        if (generateCode) {
+            JOptionPane.showMessageDialog(this,
+                    "Code generated successfully.\n\n"
+                            + "3-address code: " + describePath(result.c3dFilePath()) + "\n"
+                            + "RISC-V:         " + describePath(result.asmFilePath()) + "\n\n"
+                            + "Running it on RARS is not connected yet.",
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
         JOptionPane.showMessageDialog(this,
                 "Validation successful! No semantic errors found.",
                 "Success", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private String describePath(String path) {
+        return (path != null && !path.isBlank()) ? path : "(not generated)";
     }
 
     private void renderSymbolTable(java.util.List<SymbolDTO> symbols) {
@@ -632,15 +644,15 @@ public class CodeEditorView extends JFrame {
         if (confirm == JOptionPane.YES_OPTION) {
             if (deleteRecursively(targetFile)) {
 
-               for (int i = 0; i < editorTabbedPane.getTabCount(); i++) {
-                   JScrollPane scrollPane = (JScrollPane) editorTabbedPane.getComponentAt(i);
-                   JTextArea area = (JTextArea) scrollPane.getViewport().getView();
-                   File openFile = (File) area.getClientProperty("file");
-                   if (openFile != null && openFile.getAbsolutePath().equals(targetFile.getAbsolutePath())) {
-                       editorTabbedPane.removeTabAt(i);
-                       break;
-                   }
-               }
+                for (int i = 0; i < editorTabbedPane.getTabCount(); i++) {
+                    JScrollPane scrollPane = (JScrollPane) editorTabbedPane.getComponentAt(i);
+                    JTextArea area = (JTextArea) scrollPane.getViewport().getView();
+                    File openFile = (File) area.getClientProperty("file");
+                    if (openFile != null && openFile.getAbsolutePath().equals(targetFile.getAbsolutePath())) {
+                        editorTabbedPane.removeTabAt(i);
+                        break;
+                    }
+                }
 
                 loadProjectTree(currentRootFile);
                 JOptionPane.showMessageDialog(this, "Successfully deleted.", "Success", JOptionPane.INFORMATION_MESSAGE);

@@ -214,15 +214,53 @@ public interface LatinParserListener extends ParseTreeListener {
 	 */
 	void exitInstructionExpression(LatinParser.InstructionExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link LatinParser#declaration}.
+	 * Enter a parse tree produced by the {@code DeclStandard}
+	 * labeled alternative in {@link LatinParser#declaration}.
 	 * @param ctx the parse tree
 	 */
-	void enterDeclaration(LatinParser.DeclarationContext ctx);
+	void enterDeclStandard(LatinParser.DeclStandardContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link LatinParser#declaration}.
+	 * Exit a parse tree produced by the {@code DeclStandard}
+	 * labeled alternative in {@link LatinParser#declaration}.
 	 * @param ctx the parse tree
 	 */
-	void exitDeclaration(LatinParser.DeclarationContext ctx);
+	void exitDeclStandard(LatinParser.DeclStandardContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code DeclExplicitType}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void enterDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code DeclExplicitType}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void exitDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code DeclNewInstance}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void enterDeclNewInstance(LatinParser.DeclNewInstanceContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code DeclNewInstance}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void exitDeclNewInstance(LatinParser.DeclNewInstanceContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code DeclBoolean}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void enterDeclBoolean(LatinParser.DeclBooleanContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code DeclBoolean}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 */
+	void exitDeclBoolean(LatinParser.DeclBooleanContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LatinParser#arrayDeclaration}.
 	 * @param ctx the parse tree
@@ -592,6 +630,18 @@ public interface LatinParserListener extends ParseTreeListener {
 	 */
 	void exitArgumentList(LatinParser.ArgumentListContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code ExprNull}
+	 * labeled alternative in {@link LatinParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterExprNull(LatinParser.ExprNullContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ExprNull}
+	 * labeled alternative in {@link LatinParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitExprNull(LatinParser.ExprNullContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code ExprBoolean}
 	 * labeled alternative in {@link LatinParser#expression}.
 	 * @param ctx the parse tree
@@ -753,6 +803,18 @@ public interface LatinParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitCompString(LatinParser.CompStringContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code CompNull}
+	 * labeled alternative in {@link LatinParser#comparisonOperand}.
+	 * @param ctx the parse tree
+	 */
+	void enterCompNull(LatinParser.CompNullContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code CompNull}
+	 * labeled alternative in {@link LatinParser#comparisonOperand}.
+	 * @param ctx the parse tree
+	 */
+	void exitCompNull(LatinParser.CompNullContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link LatinParser#relationalOp}.
 	 * @param ctx the parse tree

@@ -41,4 +41,6 @@ public interface Visitor<T> {
         T visitLvalue(NodeLvalue n);
         T visitImport(NodeImport n);
         T visitFunctionCall (NodeFunctionCall n);
+        T visitNullLiteral(NodeNullLiteral n);
+        T visitMethodCall(NodeMethodCall n);
 }

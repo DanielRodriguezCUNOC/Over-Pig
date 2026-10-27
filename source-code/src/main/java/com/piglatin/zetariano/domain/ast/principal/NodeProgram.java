@@ -13,20 +13,22 @@ import java.util.List;
 @Setter
 public class NodeProgram extends ASTNode {
 
-    private NodeClassDeclaration classDeclaration;
+    private List<NodeClassDeclaration> classes;
 
     public NodeProgram(int line, int column) {
         super(line, column);
+        this.classes = new ArrayList<>();
     }
 
-    public NodeProgram(NodeClassDeclaration classDeclaration, int line, int column) {
+    public NodeProgram(List<NodeClassDeclaration> classes, int line, int column) {
         super(line, column);
-        this.classDeclaration = classDeclaration;
+        this.classes = classes;
+
     }
 
     @Override
     public String toString() {
-        return "Program: " + (classDeclaration != null ? classDeclaration.getName() : "null");
+        return "Program: " + classes.size() + " classes";
     }
 
     @Override

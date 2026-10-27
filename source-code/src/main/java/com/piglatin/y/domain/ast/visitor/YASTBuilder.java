@@ -1,0 +1,610 @@
+package com.piglatin.y.domain.ast.visitor;
+
+import com.piglatin.y.domain.ast.expressions.*;
+import com.piglatin.y.domain.ast.principal.ASTNode;
+import com.piglatin.y.domain.ast.principal.NodeProgram;
+import com.piglatin.y.domain.ast.statements.*;
+import com.piglatin.y.infrastructure.parser.generated.YParser;
+import com.piglatin.y.infrastructure.parser.generated.YParserBaseVisitor;
+
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
+
+    @Override
+    public ASTNode visitProgram(YParser.ProgramContext ctx) {
+
+        int line = ctx.getStart().getLine();
+        int column = ctx.getStart().getCharPositionInLine();
+        NodeProgram program = new NodeProgram(line, column);
+
+        //* Visit all global declarations and add them to the program
+
+        if (ctx.globalDeclaration() != null) {
+            for (YParser.GlobalDeclarationContext gCtx : ctx.globalDeclaration()){
+                program.addStructure((NodeStructureDefinition) visit(gCtx));
+            }
+        }
+
+        if (ctx.functionDeclaration() != null) {
+            for (YParser.FunctionDeclarationContext fCtx : ctx.functionDeclaration()){
+                program.addFunction((NodeFunctionDefinition) visit(fCtx));
+            }
+        }
+        return program;
+    }
+
+    //*********************
+    //?     STRUCTS
+    //*********************
+
+    //* Global struct (%estructuras): delegates to the shared structDeclaration rule.
+    @Override
+    public ASTNode visitGlobalStructure(YParser.GlobalStructureContext ctx) {
+        return visit(ctx.structDeclaration());
+    }
+
+    //* Struct declared inside a function body. It ends up as a NodeStructureDefinition
+    //* inside the NodeBlock; YSymbolTableBuilder / YTypeChecker already handle it
+    //* through visitStructureDefinition().
+    @Override
+    public ASTNode visitInstructionStructDecl(YParser.InstructionStructDeclContext ctx) {
+        return visit(ctx.structDeclaration());
+    }
+
+    //* Shared by global and local structs.
+    @Override
+    public ASTNode visitStructDeclaration(YParser.StructDeclarationContext ctx) {
+        int line = ctx.getStart().getLine();
+        int column = ctx.getStart().getCharPositionInLine();
+        String structName = ctx.ID().getText();
+
+        List<NodeFieldDeclaration> fields = new ArrayList<>();
+        for (YParser.StructFieldContext fCtx : ctx.structBlock().structField()) {
+            fields.add((NodeFieldDeclaration) visit(fCtx));
+        }
+        return new NodeStructureDefinition(structName, fields, line, column);
+    }
+
+    @Override
+    public ASTNode visitFieldSimpleOrArray(YParser.FieldSimpleOrArrayContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        String type = ctx.type().getText();
+        String name = ctx.ID().getText();
+        boolean isArray = ctx.LEFT_BRACKET() != null;
+        //* NodeFieldDeclaration.arraySize is a primitive int: 0 means "not an array"
+        int size = (isArray && ctx.INTEGER() != null) ? Integer.parseInt(ctx.INTEGER().getText()) : 0;
+
+        return new NodeFieldDeclaration(type, name, isArray, size, line, col);
+    }
+
+    //*********************
+    //?     FUNCTIONS
+    //*********************
+
+    @Override
+    public ASTNode visitFunctionDeclaration(YParser.FunctionDeclarationContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        String funcName = ctx.ID().getText();
+
+        List<NodeParameter> parameters = new ArrayList<>();
+        if (ctx.parameterList() != null) {
+            for (YParser.ParameterContext pCtx : ctx.parameterList().parameter()) {
+                parameters.add((NodeParameter) visit(pCtx));
+            }
+        }
+
+        String returnType = ctx.type() != null ? ctx.type().getText() : "void";
+        NodeBlock body = (NodeBlock) visit(ctx.block());
+
+        return new NodeFunctionDefinition(funcName, parameters, returnType, body, line, col);
+    }
+
+    @Override
+    public ASTNode visitParamSimple(YParser.ParamSimpleContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        return new NodeParameter(ctx.type().getText(), ctx.ID().getText(), false, false, line, col);
+    }
+
+    @Override
+    public ASTNode visitParamArray(YParser.ParamArrayContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        return new NodeParameter(ctx.type().getText(), ctx.ID().getText(), true, false, line, col);
+    }
+
+    @Override
+    public ASTNode visitParamStruct(YParser.ParamStructContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        return new NodeParameter(ctx.type().getText(), ctx.ID().getText(), false, true, line, col);
+    }
+
+    //**********************8*********
+    //?     BLOCKS/INSTRUCTIONS
+    //********************************
+
+    @Override
+    public ASTNode visitBlock(YParser.BlockContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        NodeBlock block = new NodeBlock(line, col);
+
+        if (ctx.instruction() != null) {
+            for (YParser.InstructionContext iCtx : ctx.instruction()) {
+                ASTNode instNode = visit(iCtx);
+                if (instNode != null) {
+                    block.addInstruction(instNode);
+                }
+            }
+        }
+        return block;
+    }
+
+    @Override
+    public ASTNode visitInstructionAssignment(YParser.InstructionAssignmentContext ctx) {
+        return visit(ctx.assignment());
+    }
+
+    @Override
+    public ASTNode visitInstructionPrint(YParser.InstructionPrintContext ctx) {
+        return visit(ctx.printStatement());
+    }
+
+    @Override
+    public ASTNode visitInstructionIf(YParser.InstructionIfContext ctx) {
+        return visit(ctx.ifStatement());
+    }
+
+    @Override
+    public ASTNode visitInstructionChoose(YParser.InstructionChooseContext ctx) {
+        return visit(ctx.chooseStatement());
+    }
+
+    @Override
+    public ASTNode visitInstructionWhile(YParser.InstructionWhileContext ctx) {
+        return visit(ctx.whileStatement());
+    }
+
+    @Override
+    public ASTNode visitInstructionDoWhile(YParser.InstructionDoWhileContext ctx) {
+        return visit(ctx.doWhileStatement());
+    }
+
+    @Override
+    public ASTNode visitInstructionFor(YParser.InstructionForContext ctx) {
+        return visit(ctx.forStatement());
+    }
+
+    @Override
+    public ASTNode visitInstructionJump(YParser.InstructionJumpContext ctx) {
+        return visit(ctx.jumpStatement());
+    }
+
+    @Override
+    public ASTNode visitInstructionDeclaration(YParser.InstructionDeclarationContext ctx) {
+        return visit(ctx.variableDeclaration());
+    }
+
+    @Override
+    public ASTNode visitInstructionArrayDeclaration(YParser.InstructionArrayDeclarationContext ctx) {
+        return visit(ctx.arrayDeclaration());
+    }
+
+    @Override
+    public ASTNode visitInstructionExpression(YParser.InstructionExpressionContext ctx) {
+        return visit(ctx.expression());
+    }
+
+    //**********************8*********
+    //?     DECLARATIONS/ASSIGNMENTS
+    //********************************
+
+    @Override
+    public ASTNode visitVariableDeclaration(YParser.VariableDeclarationContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        String type = ctx.type().getText();
+        String name = ctx.ID().getText();
+        ASTNode initializer = ctx.expression() != null ? visit(ctx.expression()) : null;
+
+        return new NodeVariableDeclaration(type, name, initializer, line, col);
+    }
+
+    @Override
+    public ASTNode visitArrayDeclaration(YParser.ArrayDeclarationContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        String type = ctx.type().getText();
+        String name = ctx.ID().getText();
+        List<ASTNode> dimensions = new ArrayList<>();
+        ASTNode initializer = null;
+
+        if (ctx.ASSIGN() !=null) {
+            int lastIndex = ctx.expression().size() - 1;
+            for (int i = 0; i < lastIndex; i++) {
+                dimensions.add(visit(ctx.expression(i)));
+            }
+            initializer = visit(ctx.expression(lastIndex));
+        }else{
+
+            for (YParser.ExpressionContext eCtx : ctx.expression()) {
+                dimensions.add(visit(eCtx));
+            }
+        }
+        return new NodeArrayDeclaration(type, name, dimensions, initializer, line, col);
+    }
+
+    @Override
+    public ASTNode visitAssigmentNormal(YParser.AssigmentNormalContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        ASTNode lvalue = visit(ctx.lvalue());
+        ASTNode value = visit(ctx.expression());
+
+        return new NodeAssignment(lvalue, "=", value, line, col);
+    }
+
+    @Override
+    public ASTNode visitAssigmentIncDec(YParser.AssigmentIncDecContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        ASTNode lvalue = visit(ctx.lvalue());
+        String operator = ctx.INC() != null ? "++" : "--";
+
+        return new NodeAssignment(lvalue, operator, null, line, col);
+    }
+
+
+    //**********************8*********
+    //?     CONTROL STRUCTURES
+    //********************************
+
+    @Override
+    public ASTNode visitPrintStatement(YParser.PrintStatementContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        //* The grammar now has a single expression ("a" + b + c is already one
+        //* additive expression), so NodePrint always holds exactly one element.
+        List<ASTNode> expressions = new ArrayList<>();
+        expressions.add(visit(ctx.expression()));
+
+        return new NodePrint(expressions, line, col);
+    }
+
+    @Override
+    public ASTNode visitIfStatement(YParser.IfStatementContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+
+        // Condición y bloque principal del IF
+        ASTNode condition = (ctx.expression() != null && !ctx.expression().isEmpty())
+                ? visit(ctx.expression(0)) : null;
+        NodeBlock thenBlock = (ctx.block() != null && !ctx.block().isEmpty())
+                ? (NodeBlock) visit(ctx.block(0)) : null;
+
+        List<ElseIfClause> elseIfClauses = new ArrayList<>();
+        int sinoCount = ctx.SINO() != null ? ctx.SINO().size() : 0;
+
+        // Validar el tamaño máximo de expresiones disponibles para los 'sino'
+        int maxExprs = ctx.expression() != null ? ctx.expression().size() : 0;
+        int maxBlocks = ctx.block() != null ? ctx.block().size() : 0;
+
+        for (int i = 0; i < sinoCount; i++) {
+            int exprIdx = i + 1;
+            int blockIdx = i + 1;
+
+            ASTNode sinoCond = (exprIdx < maxExprs) ? visit(ctx.expression(exprIdx)) : null;
+            NodeBlock sinoBlock = (blockIdx < maxBlocks) ? (NodeBlock) visit(ctx.block(blockIdx)) : null;
+
+            if (sinoCond != null || sinoBlock != null) {
+                elseIfClauses.add(new ElseIfClause(sinoCond, sinoBlock));
+            }
+        }
+
+        NodeBlock elseBlock = null;
+        if (ctx.CONTRARIO() != null && maxBlocks > 0) {
+            elseBlock = (NodeBlock) visit(ctx.block(maxBlocks - 1));
+        }
+
+        return new NodeIf(condition, thenBlock, elseIfClauses, elseBlock, line, col);
+    }
+
+    @Override
+    public ASTNode visitChooseStatement(YParser.ChooseStatementContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+
+        int maxExprs = ctx.expression() != null ? ctx.expression().size() : 0;
+        int maxBlocks = ctx.block() != null ? ctx.block().size() : 0;
+
+        ASTNode targetExpr = maxExprs > 0 ? visit(ctx.expression(0)) : null;
+        List<NodeChooseCase> cases = new ArrayList<>();
+
+        int exprIdx = 1;
+        int blockIdx = 0;
+        int casoCount = ctx.CASO() != null ? ctx.CASO().size() : 0;
+
+        for (int i = 0; i < casoCount; i++) {
+            ASTNode caseExpr = (exprIdx < maxExprs) ? visit(ctx.expression(exprIdx++)) : null;
+            NodeBlock caseBlock = (blockIdx < maxBlocks) ? (NodeBlock) visit(ctx.block(blockIdx++)) : null;
+            cases.add(new NodeChooseCase(caseExpr, caseBlock, false, line, col));
+        }
+
+        NodeChooseCase defaultCase = null;
+        if (ctx.SIEMPRE() != null && blockIdx < maxBlocks) {
+            NodeBlock defaultBlock = (NodeBlock) visit(ctx.block(blockIdx));
+            defaultCase = new NodeChooseCase(null, defaultBlock, true, line, col);
+        }
+
+        return new NodeChoose(targetExpr, cases, defaultCase, line, col);
+    }
+
+    @Override
+    public ASTNode visitWhileStatement(YParser.WhileStatementContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        ASTNode condition = visit(ctx.expression());
+        NodeBlock body = (NodeBlock) visit(ctx.block());
+
+        return new NodeWhile(condition, body, line, col);
+    }
+
+    @Override
+    public ASTNode visitDoWhileStatement(YParser.DoWhileStatementContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        NodeBlock body = (NodeBlock) visit(ctx.block());
+        ASTNode condition = visit(ctx.expression());
+
+        return new NodeDoWhile(body, condition, line, col);
+    }
+
+    @Override
+    public ASTNode visitForStatement(YParser.ForStatementContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+
+        //* Every part of the header is optional, so the position relative to the
+        //* ';' separators decides what is the initializer and what is the update
+        //* (for(; i < n; i++) must NOT take "i++" as the initializer).
+        ASTNode init = null;
+        ASTNode increment = null;
+        int semicolons = 0;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            if (ctx.getChild(i) instanceof TerminalNode t) {
+                if (t.getSymbol().getType() == YParser.SEMICOLON) semicolons++;
+            } else if (semicolons == 0
+                    && (ctx.getChild(i) instanceof YParser.VariableDeclarationContext
+                    || ctx.getChild(i) instanceof YParser.AssignmentContext)) {
+                init = visit(ctx.getChild(i));
+            } else if (semicolons == 2 && ctx.getChild(i) instanceof YParser.AssignmentContext) {
+                increment = visit(ctx.getChild(i));
+            }
+        }
+
+        ASTNode condition = ctx.expression() != null ? visit(ctx.expression()) : null;
+
+        NodeBlock body = (NodeBlock) visit(ctx.block());
+
+        return new NodeFor(init, condition, increment, body, line, col);
+    }
+
+
+    //**********************8*********
+    //?     JUMP STATEMENTS
+    //********************************
+
+
+    @Override
+    public ASTNode visitJumpBreak(YParser.JumpBreakContext ctx) {
+        return new NodeBreak(ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+    }
+
+    @Override
+    public ASTNode visitJumpContinue(YParser.JumpContinueContext ctx) {
+        return new NodeContinue(ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+    }
+
+    @Override
+    public ASTNode visitJumpReturn(YParser.JumpReturnContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        ASTNode returnExpr = ctx.expression() != null ? visit(ctx.expression()) : null;
+
+        return new NodeReturn(returnExpr, line, col);
+    }
+
+    //**********************8*********
+    //?     JUMP STATEMENTS
+    //********************************
+
+    @Override
+    public ASTNode visitLvalue(YParser.LvalueContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+
+        if (ctx.DOT() != null) {
+            ASTNode target = visit(ctx.lvalue());
+            String fieldName = ctx.ID().getText();
+            return new NodeFieldAccess(target, fieldName, line, col);
+        } else if (ctx.LEFT_BRACKET() != null) {
+            ASTNode target = visit(ctx.lvalue());
+            ASTNode index = visit(ctx.expression());
+            return new NodeIndexAccess(target, index, line, col);
+        } else {
+            return new NodeIdentifier(ctx.ID().getText(), line, col);
+        }
+    }
+
+    @Override
+    public ASTNode visitExprAnd(YParser.ExprAndContext ctx) {
+        return binary(ctx, ctx.expression(0), ctx.expression(1), "&&");
+    }
+
+    @Override
+    public ASTNode visitExprOr(YParser.ExprOrContext ctx) {
+        return binary(ctx, ctx.expression(0), ctx.expression(1), "||");
+    }
+
+    private ASTNode binary(ParserRuleContext ctx, ParserRuleContext l, ParserRuleContext r, String op) {
+        return new NodeBinaryOperation(op, visit(l), visit(r),
+                ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine());
+    }
+
+    @Override
+    public ASTNode visitExprRelational(YParser.ExprRelationalContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        ASTNode left = visit(ctx.expression(0));
+        ASTNode right = visit(ctx.expression(1));
+        String op = ctx.getChild(1).getText();
+
+        return new NodeBinaryOperation(op, left, right, line, col);
+    }
+
+    @Override
+    public ASTNode visitExprAdditive(YParser.ExprAdditiveContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        ASTNode left = visit(ctx.expression(0));
+        ASTNode right = visit(ctx.expression(1));
+        String op = ctx.getChild(1).getText();
+
+        return new NodeBinaryOperation(op, left, right, line, col);
+    }
+
+    @Override
+    public ASTNode visitExprMultiplicative(YParser.ExprMultiplicativeContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        ASTNode left = visit(ctx.expression(0));
+        ASTNode right = visit(ctx.expression(1));
+        String op = ctx.getChild(1).getText();
+
+        return new NodeBinaryOperation(op, left, right, line, col);
+    }
+
+    @Override
+    public ASTNode visitExprUnary(YParser.ExprUnaryContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        String op = ctx.getChild(0).getText();
+        ASTNode operand = visit(ctx.expression());
+
+        return new NodeUnaryOperation(op, operand, line, col);
+    }
+
+    @Override
+    public ASTNode visitExprPrimary(YParser.ExprPrimaryContext ctx) {
+        return visit(ctx.primary());
+    }
+
+    @Override
+    public ASTNode visitExprArrayLiteral(YParser.ExprArrayLiteralContext ctx) {
+        return visit(ctx.arrayLiteral());
+    }
+
+    @Override
+    public ASTNode visitArrayLiteral(YParser.ArrayLiteralContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        List<ASTNode> elements = new ArrayList<>();
+
+        for (YParser.ExpressionContext eCtx : ctx.expression()) {
+            elements.add(visit(eCtx));
+        }
+
+        return new NodeArrayLiteral(elements, line, col);
+    }
+
+
+    //**********************8*********
+    //?     PRIMARY ELEMENTS/LITERALS
+    //********************************
+
+    @Override
+    public ASTNode visitPrimaryLiteral(YParser.PrimaryLiteralContext ctx) {
+        return visit(ctx.literal());
+    }
+
+    @Override
+    public ASTNode visitPrimaryLvalue(YParser.PrimaryLvalueContext ctx) {
+        return visit(ctx.lvalue());
+    }
+
+    @Override
+    public ASTNode visitPrimaryFunctionCall(YParser.PrimaryFunctionCallContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        String funcName = ctx.ID().getText();
+        List<ASTNode> arguments = new ArrayList<>();
+
+        if (ctx.argumentList() != null) {
+            for (YParser.ExpressionContext eCtx : ctx.argumentList().expression()) {
+                arguments.add(visit(eCtx));
+            }
+        }
+
+        return new NodeFunctionCall(funcName, arguments, line, col);
+    }
+
+    @Override
+    public ASTNode visitPrimaryRead(YParser.PrimaryReadContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+        return new NodeRead(line, col);
+    }
+
+    @Override
+    public ASTNode visitPrimaryParen(YParser.PrimaryParenContext ctx) {
+        return visit(ctx.expression());
+    }
+
+    @Override
+    public ASTNode visitLiteral(YParser.LiteralContext ctx) {
+        int line = ctx.getStart().getLine();
+        int col = ctx.getStart().getCharPositionInLine();
+
+        if (ctx.INTEGER() != null) {
+            return new NodeIntegerLiteral(Integer.parseInt(ctx.INTEGER().getText()), line, col);
+        } else if (ctx.FLOAT() != null) {
+            return new NodeFloatLiteral(Double.parseDouble(ctx.FLOAT().getText()), line, col);
+        } else if (ctx.CHAR() != null) {
+            String raw = ctx.CHAR().getText();
+            char charVal = parseChar(raw);
+            return new NodeCharLiteral(charVal, line, col);
+        } else if (ctx.STRING() != null) {
+            String raw = ctx.STRING().getText();
+            String strVal = raw.substring(1, raw.length() - 1);
+            return new NodeStringLiteral(strVal, line, col);
+        } else if (ctx.VERDADERO() != null) {
+            return new NodeBooleanLiteral(true, line, col);
+        } else if (ctx.FALSO() != null) {
+            return new NodeBooleanLiteral(false, line, col);
+        }
+
+        return null;
+    }
+
+    //* 'a'  ->  a      '\n' -> newline      '\'' -> '
+    private char parseChar(String raw) {
+        if (raw.length() >= 4 && raw.charAt(1) == '\\') {
+            return switch (raw.charAt(2)) {
+                case 'n' -> '\n';
+                case 't' -> '\t';
+                case 'r' -> '\r';
+                case '0' -> '\0';
+                default -> raw.charAt(2);
+            };
+        }
+        return raw.length() >= 3 ? raw.charAt(1) : '\0';
+    }
+}

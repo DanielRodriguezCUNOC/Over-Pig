@@ -1,7 +1,7 @@
 package com.piglatin.common.application.ports.output;
 
 /**
- * This interface store the result of C3D, C content
+ * This interface store the result of C3D, RISC-V content
  */
 
 public interface ResultExporter {
@@ -11,9 +11,9 @@ public interface ResultExporter {
     //* Export the 3DC and quatrain
     String export3DC (String code, String fileName);
 
-    //* Export C code generated with gcc
-    String exportC (String code, String fileName);
+    //* Export the RISC-V assembly as fileName.asm
+    String exportAsm (String code, String fileName);
 
-    //* Export combiened codes
-    String exportCombined (String c3code, String cCode, String fileName);
+    String exportRuntime ();
+
 }

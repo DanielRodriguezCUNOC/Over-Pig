@@ -14,8 +14,7 @@ public class Main {
 
         SwingUtilities.invokeLater(() -> {
             CompilerUseCase compiler = ApplicationConfig.createCompiler();
-            ExecutionCCode executor = ApplicationConfig.createExecutionCCode();
-            LanguajeCompilerFacade facade = new LanguageCompilerFacadeImpl(compiler, executor);
+            LanguajeCompilerFacade facade = new LanguageCompilerFacadeImpl(compiler);
             CodeEditorView view = new CodeEditorView(facade);
             view.setVisible(true);
         });

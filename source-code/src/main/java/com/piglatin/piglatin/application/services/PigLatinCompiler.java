@@ -3,20 +3,37 @@ package com.piglatin.piglatin.application.services;
 import com.piglatin.common.application.dto.*;
 import com.piglatin.common.application.ports.input.CompilerUseCase;
 import com.piglatin.common.application.ports.output.ErrorReporter;
-import com.piglatin.common.infrastructure.codegen.C3DContext;
-import com.piglatin.common.infrastructure.codegen.C3DToCConverter;
-import com.piglatin.common.infrastructure.codegen.Quadruple;
+import com.piglatin.common.infrastructure.codegen.ir.C3DContext;
+import com.piglatin.common.infrastructure.codegen.ir.C3DEmitter;
+import com.piglatin.common.infrastructure.codegen.ir.Instruction;
+import com.piglatin.common.infrastructure.codegen.ir.instructions.controlflow.Label;
+import com.piglatin.common.infrastructure.codegen.ir.instructions.calls.ReturnVoid;
+import com.piglatin.common.infrastructure.codegen.riscv.C3DToRiscVConverter;
 import com.piglatin.piglatin.application.dto.ParserResultDTO;
+import com.piglatin.piglatin.domain.ast.nodes.NodeImport;
 import com.piglatin.piglatin.domain.ast.principal.NodeProgram;
-import com.piglatin.piglatin.domain.symboltable.SymbolTable;
+import com.piglatin.piglatin.domain.symboltable.PigLatinSymbolTable;
 import com.piglatin.piglatin.infrastructure.codegen.c3d.PigLatinC3DVisitor;
-import com.piglatin.piglatin.infrastructure.parser.PigLatinServiceAnalyzer;
+import com.piglatin.y.domain.ast.visitor.YASTBuilder;
+import com.piglatin.y.domain.semantic.YSemanticAnalyzer;
+import com.piglatin.y.domain.symboltable.YSymbolTable;
+import com.piglatin.y.domain.types.YTypeTable;
+import com.piglatin.zetariano.domain.ast.statements.NodeClassDeclaration;
+import com.piglatin.zetariano.domain.ast.visitor.ZetarianoASTBuilder;
+import com.piglatin.zetariano.domain.semantic.ZetarianoSemanticAnalyzer;
 import com.piglatin.zetariano.domain.symboltable.Symbol;
+import com.piglatin.zetariano.domain.symboltable.ZetarianoSymbolTable;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
+import com.piglatin.zetariano.infrastructure.codegen.c3d.VtableLayout;
+import com.piglatin.zetariano.infrastructure.codegen.c3d.ZetarianoC3DVisitor;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PigLatinCompiler implements CompilerUseCase {
 
@@ -37,11 +54,6 @@ public class PigLatinCompiler implements CompilerUseCase {
         this.errorReporter = errorReporter;
     }
 
-    /**
-     * Contenedor de hermanos: .z por un lado, .y por otro.
-     * Las tablas de Y viven aquí porque el SemanticAnalyzer de Y crea sus
-     * propias tablas internamente y las expone vía SemanticContext.
-     */
 
     @Override
     public CompileResponseDTO compile(CompileRequestDTO request) {
@@ -64,10 +76,26 @@ public class PigLatinCompiler implements CompilerUseCase {
         }
 
         try {
-            // === AST de PigLatin ===
+            //? AST de PigLatin
             NodeProgram ast = treeMapper.buildAST(parserResult);
 
-            List<CustomErrorDTO> semanticErrors = semanticAnalyzer.analyze(ast);
+            //? Cargar tablas de hermanos ANTES de validar modo
+            ZetarianoTypeTable zTypeTable =
+                    new ZetarianoTypeTable();
+            ZetarianoSymbolTable zSymbolTable =
+                    new ZetarianoSymbolTable();
+
+            Siblings siblings = new Siblings();
+            if (request.getProjectDirectory() != null) {
+                siblings = loadSiblingClasses(
+                        request.getProjectDirectory(),
+                        request.getCurrentFileName(),
+                        ast.getImports(),
+                        zTypeTable, zSymbolTable);
+            }
+
+            List<CustomErrorDTO> semanticErrors =
+                    semanticAnalyzer.analyze(ast, zTypeTable.getInheritanceMap());
             List<CompilationErrorDTO> semErrors = convertSemanticErrors(semanticErrors, request);
             errors.addAll(semErrors);
 
@@ -76,21 +104,8 @@ public class PigLatinCompiler implements CompilerUseCase {
                 return buildResponse(false, errors, null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), startTime);
             }
 
-            // === Cargar tablas de hermanos ANTES de validar modo ===
-            com.piglatin.zetariano.domain.types.TypeTable zTypeTable =
-                    new com.piglatin.zetariano.domain.types.TypeTable();
-            com.piglatin.zetariano.domain.symboltable.SymbolTable zSymbolTable =
-                    new com.piglatin.zetariano.domain.symboltable.SymbolTable();
-            com.piglatin.zetariano.infrastructure.codegen.c3d.ClassLayout zLayout =
-                    new com.piglatin.zetariano.infrastructure.codegen.c3d.ClassLayout();
-
-            Siblings siblings = new Siblings();
-            if (request.getProjectDirectory() != null) {
-                siblings = loadSiblingClasses(
-                        request.getProjectDirectory(),
-                        request.getCurrentFileName(),
-                        zTypeTable, zSymbolTable, zLayout);
-            }
+            // Con todos los .z cargados se crea el layout de Zetariano.
+            siblings.zLayout = new VtableLayout(zSymbolTable, zTypeTable);
 
             // Extracción de datos de tablas
             List<SymbolInfoDTO> symbols = extractSymbols(zSymbolTable, siblings.ySymbolTable);
@@ -101,21 +116,26 @@ public class PigLatinCompiler implements CompilerUseCase {
                 return buildResponse(true, errors, null, symbols, types, scopes, startTime);
             }
 
-            // === C3D ===
+            //* C3D
             C3DContext c3dContext = new C3DContext();
 
-            // Emitir PigLatin PRIMERO
+            //   main: call main_0; ret
+            // final al exit de RARS -> li a7, 10; ecall
+            ctxEmitEntryPoint(c3dContext);
+
+            // Emitir PigLatin primero (main_0)
             PigLatinC3DVisitor pigVisitor = new PigLatinC3DVisitor(
-                    c3dContext, zLayout, zSymbolTable, zTypeTable, siblings.ySymbolTable);
+                    c3dContext, siblings.zLayout, zSymbolTable, zTypeTable, siblings.ySymbolTable,
+                    siblings.yStructLayout);
             ast.accept(pigVisitor);
 
-            // Emitir hermanos .z
+            // Emitir hermanos .z con una sola instancia del visitor, así comparten el mapa de
+            // strings (str_N) y de vtables
+            ZetarianoC3DVisitor zVisitor =
+                    new ZetarianoC3DVisitor(c3dContext, zSymbolTable, zTypeTable);
             for (com.piglatin.zetariano.domain.ast.principal.NodeProgram z : siblings.zPrograms) {
                 try {
-                    if (z == null || z.getClassDeclaration() == null) continue;
-                    com.piglatin.zetariano.infrastructure.codegen.c3d.ZetarianoC3DVisitor zVisitor =
-                            new com.piglatin.zetariano.infrastructure.codegen.c3d.ZetarianoC3DVisitor(
-                                    c3dContext, zLayout, zSymbolTable, zTypeTable);
+                    if (z == null || z.getClasses() == null || z.getClasses().isEmpty()) continue;
                     zVisitor.generate(z);
                 } catch (Exception e) {
                     System.err.println("[PigLatinCompiler] Error emitiendo C3D de hermano .z: "
@@ -138,19 +158,27 @@ public class PigLatinCompiler implements CompilerUseCase {
                 }
             }
 
-            // Serializar C3D
-            StringBuilder sb = new StringBuilder();
-            for (Quadruple q : c3dContext.getQuadruples()) {
-                sb.append(q.toString()).append("\n");
-            }
-            String c3dCode = sb.toString();
-            String cCode = C3DToCConverter.convertToC(c3dContext);
+            // Datos para la sección .data. Prefijos distintos por lenguaje.
+            // str_N (Zetariano), plstr_N (PigLatin)
+            Map<String, String> strings = new LinkedHashMap<>();
+            strings.putAll(pigVisitor.getStringLiterals());
+            strings.putAll(zVisitor.getStringLiterals());
+            Map<String, List<String>> vtables = zVisitor.getVtables();
 
-            GeneretedCodeDTO generatedCode = new GeneretedCodeDTO(c3dCode, cCode, "main");
-            System.out.println("=== DEBUG COMPILER ===");
-            System.out.println("Símbolos extraídos: " + symbols.size());
-            System.out.println("Tipos extraídos: " + types.size());
-            System.out.println("Scopes extraídos: " + scopes.size());
+            // C3D -> RISC-V
+            List<Instruction> instructions = c3dContext.getInstructions();
+            C3DToRiscVConverter riscv = new C3DToRiscVConverter(instructions, strings, vtables);
+            String asm = riscv.convert();
+
+            // Serializar C3D
+            String c3dCode = c3dContext.getInstructions().stream()
+                    .map(Instruction::toC3D)
+                    .collect(Collectors.joining("\n"));
+
+            GeneretedCodeDTO generatedCode = new GeneretedCodeDTO();
+            generatedCode.setC3dCode(c3dCode);
+            generatedCode.setAsmCode(asm);
+            generatedCode.setEntryPoint("main");
             return buildResponse(true, errors, generatedCode, symbols, types, scopes, startTime);
 
         } catch (Exception e) {
@@ -163,34 +191,58 @@ public class PigLatinCompiler implements CompilerUseCase {
         }
     }
 
+    private void ctxEmitEntryPoint(C3DContext c3dContext) {
+        c3dContext.emit(new Label("main"));
+        new C3DEmitter(c3dContext).emitCallVoid("main_0", 0, 0);
+        c3dContext.emit(new ReturnVoid());
+    }
 
     /**
-     * Recorre el directorio del proyecto, carga .z y .y.
-     * - Los .z se analizan con tablas de Zetariano (pasadas como argumento).
-     * - Los .y crean sus propias tablas internamente; el Siblings las captura.
+     * Carga los .z y .y del proyecto.
+     *
+     * Primero se resuelven los  import del .pig respecto al directorio del proyecto
+     * en el orden en que aparecen. Así se encuentran los archivos en subcarpetas y se cargan en un orden
+     * determinista
+     * Después se recorre el propio directorio buscando .z / .y sueltos
      */
     private Siblings loadSiblingClasses(
             String projectDirectory,
             String currentFileName,
-            com.piglatin.zetariano.domain.types.TypeTable zTypeTable,
-            com.piglatin.zetariano.domain.symboltable.SymbolTable zSymbolTable,
-            com.piglatin.zetariano.infrastructure.codegen.c3d.ClassLayout zLayout) {
+            List<NodeImport> imports,
+            ZetarianoTypeTable zTypeTable,
+            ZetarianoSymbolTable zSymbolTable) {
 
         Siblings result = new Siblings();
 
         File dir = new File(projectDirectory);
         if (!dir.exists() || !dir.isDirectory()) return result;
 
+        java.util.Set<String> loaded = new java.util.HashSet<>();
+        List<File> toLoad = new ArrayList<>();
+
+        if (imports != null) {
+            for (NodeImport imp : imports) {
+                File f = resolveImportFile(dir, imp);
+                if (f != null && !f.getName().equals(currentFileName) && addIfNew(f, loaded)) {
+                    toLoad.add(f);
+                }
+            }
+        }
+
         File[] files = dir.listFiles((d, name) ->
                 (name.endsWith(".z") || name.endsWith(".y")) && !name.equals(currentFileName));
-        if (files == null) return result;
+        if (files != null) {
+            for (File f : files) {
+                if (addIfNew(f, loaded)) toLoad.add(f);
+            }
+        }
 
-        for (File file : files) {
+        for (File file : toLoad) {
             try {
                 String code = Files.readString(file.toPath());
 
                 if (file.getName().endsWith(".z")) {
-                    loadZFile(code, currentFileName, zTypeTable, zSymbolTable, zLayout, result);
+                    loadZFile(code, currentFileName, zTypeTable, zSymbolTable, result);
                 } else if (file.getName().endsWith(".y")) {
                     loadYFile(code, file.getName(), result);
                 }
@@ -204,13 +256,37 @@ public class PigLatinCompiler implements CompilerUseCase {
     }
 
     /**
-     * Carga un hermano .z, corre la semántica de Zetariano con las tablas
-     * compartidas y registra la clase en ClassLayout.
+     * Devuelve null si el import no tiene extensión .z/.y o el archivo no existe.
+     */
+    private File resolveImportFile(File baseDir, NodeImport imp) {
+        if (imp == null || imp.getPath() == null || imp.getPath().size() < 2) return null;
+        List<String> path = imp.getPath();
+        String ext = path.get(path.size() - 1);
+        if (!"z".equals(ext) && !"y".equals(ext)) return null;
+
+        File current = baseDir;
+        for (int i = 0; i < path.size() - 2; i++) {
+            current = new File(current, path.get(i));
+        }
+        File file = new File(current, path.get(path.size() - 2) + "." + ext);
+        return file.isFile() ? file : null;
+    }
+
+    private boolean addIfNew(File file, java.util.Set<String> loaded) {
+        try {
+            return loaded.add(file.getCanonicalPath());
+        } catch (java.io.IOException e) {
+            return loaded.add(file.getAbsolutePath());
+        }
+    }
+
+    /**
+     * Carga un hermano .z y corre la semántica de Zetariano con las tablas compartidas.
+     * El VtableLayout se crea al terminar de cargar todos los .z
      */
     private void loadZFile(String code, String currentFileName,
-                           com.piglatin.zetariano.domain.types.TypeTable zTypeTable,
-                           com.piglatin.zetariano.domain.symboltable.SymbolTable zSymbolTable,
-                           com.piglatin.zetariano.infrastructure.codegen.c3d.ClassLayout zLayout,
+                           ZetarianoTypeTable zTypeTable,
+                           ZetarianoSymbolTable zSymbolTable,
                            Siblings result) {
 
         org.antlr.v4.runtime.CharStream input =
@@ -227,22 +303,23 @@ public class PigLatinCompiler implements CompilerUseCase {
                 new com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoParser(tokens);
         parser.removeErrorListeners();
 
-        org.antlr.v4.runtime.tree.ParseTree tree = parser.program();
-        com.piglatin.zetariano.domain.ast.visitor.ASTBuilder builder =
-                new com.piglatin.zetariano.domain.ast.visitor.ASTBuilder();
+        org.antlr.v4.runtime.tree.ParseTree tree = parser.compilationUnit();
+        ZetarianoASTBuilder builder =
+                new ZetarianoASTBuilder();
 
         Object built = builder.visit(tree);
         if (!(built instanceof com.piglatin.zetariano.domain.ast.principal.NodeProgram program)) return;
-        if (program.getClassDeclaration() == null) return;
+        if (program.getClasses() == null || program.getClasses().isEmpty()) return;
 
-        String className = program.getClassDeclaration().getName();
-        zTypeTable.registerClass(className);
+        for (NodeClassDeclaration cls: program.getClasses()){
+            if (cls !=null){
+                zTypeTable.registerClass(cls.getName(), cls.getSuperClass());
+            }
+        }
 
-        com.piglatin.zetariano.domain.semantic.SemanticAnalyzer zAnalyzer =
-                new com.piglatin.zetariano.domain.semantic.SemanticAnalyzer(currentFileName);
+        ZetarianoSemanticAnalyzer zAnalyzer =
+                new ZetarianoSemanticAnalyzer(currentFileName);
         zAnalyzer.analyze(program, zTypeTable, zSymbolTable);
-
-        zLayout.registerClass(program.getClassDeclaration());
 
         result.zPrograms.add(program);
     }
@@ -264,14 +341,14 @@ public class PigLatinCompiler implements CompilerUseCase {
         parser.removeErrorListeners();
 
         org.antlr.v4.runtime.tree.ParseTree tree = parser.program();
-        com.piglatin.y.domain.ast.visitor.ASTBuilder builder =
-                new com.piglatin.y.domain.ast.visitor.ASTBuilder();
+        YASTBuilder builder =
+                new YASTBuilder();
 
         Object built = builder.visit(tree);
         if (!(built instanceof com.piglatin.y.domain.ast.principal.NodeProgram program)) return;
 
         // Registrar structs en yStructLayout y pre-registrar en
-        //    yTypeTable local, ANTES del analyze.
+        //    yTypeTable local, antes del analsis.
         if (program.getStructures() != null) {
             for (com.piglatin.y.domain.ast.statements.NodeStructureDefinition s : program.getStructures()) {
                 if (s == null) continue;
@@ -281,11 +358,11 @@ public class PigLatinCompiler implements CompilerUseCase {
         }
 
         // Analyze .
-        com.piglatin.y.domain.semantic.SemanticAnalyzer yAnalyzer =
-                new com.piglatin.y.domain.semantic.SemanticAnalyzer(fileName);
+        YSemanticAnalyzer yAnalyzer =
+                new YSemanticAnalyzer(fileName);
         com.piglatin.y.domain.semantic.SemanticContext yCtx = yAnalyzer.analyze(program);
 
-        // Capturar las tablas resultantes. Reemplazan a las del Siblings.
+        // Capturar las tablas resultantes.
         if (yCtx != null) {
             if (yCtx.getSymbolTable() != null) {
                 result.ySymbolTable = yCtx.getSymbolTable();
@@ -300,13 +377,8 @@ public class PigLatinCompiler implements CompilerUseCase {
                 result.yTypeTable = yCtx.getTypeTable();
             }
         }
-
         result.yPrograms.add(program);
     }
-
-    // ============================================================
-    // Conversión de errores
-    // ============================================================
 
     private List<CompilationErrorDTO> convertParserErrors(
             List<CustomErrorDTO> parserErrors,
@@ -383,14 +455,14 @@ public class PigLatinCompiler implements CompilerUseCase {
     }
 
     private List<SymbolInfoDTO> extractSymbols(
-            com.piglatin.zetariano.domain.symboltable.SymbolTable zSymbolTable,
-            com.piglatin.y.domain.symboltable.SymbolTable ySymbolTable) {
+            ZetarianoSymbolTable zSymbolTable,
+            YSymbolTable ySymbolTable) {
 
         List<SymbolInfoDTO> list = new ArrayList<>();
 
         // Símbolos de PigLatin
         if (this.semanticAnalyzer != null && this.semanticAnalyzer.getSymbolTable() != null) {
-            SymbolTable pigST = this.semanticAnalyzer.getSymbolTable();
+            PigLatinSymbolTable pigST = this.semanticAnalyzer.getSymbolTable();
             if (pigST.getAllScopes() != null) {
                 for (var scope : pigST.getAllScopes()) {
                     if (scope.getSymbols() != null) {
@@ -421,7 +493,7 @@ public class PigLatinCompiler implements CompilerUseCase {
             }
         }
 
-        // Símbolos de Y (.y)
+        // Símbolos de Y
         if (ySymbolTable != null && ySymbolTable.getAllSymbols() != null) {
             for (com.piglatin.y.domain.symboltable.Symbol sym : ySymbolTable.getAllSymbols()) {
                 list.add(new SymbolInfoDTO(
@@ -433,13 +505,12 @@ public class PigLatinCompiler implements CompilerUseCase {
                 ));
             }
         }
-
         return list;
     }
 
     private List<TypeInfoDTO> extractTypes(
-            com.piglatin.zetariano.domain.types.TypeTable zTypeTable,
-            com.piglatin.y.domain.types.TypeTable yTypeTable) {
+            ZetarianoTypeTable zTypeTable,
+            YTypeTable yTypeTable) {
 
         List<TypeInfoDTO> list = new ArrayList<>();
 
@@ -459,7 +530,7 @@ public class PigLatinCompiler implements CompilerUseCase {
             }
         }
 
-        // Tipos de Zetariano (.z)
+        // Tipos de Zetariano
         if (zTypeTable != null) {
             if (zTypeTable.getPrimitiveTypesView() != null) {
                 for (String typeName : zTypeTable.getPrimitiveTypesView()) {
@@ -473,7 +544,7 @@ public class PigLatinCompiler implements CompilerUseCase {
             }
         }
 
-        // Tipos de Y (.y)
+        // Tipos de Y
         if (yTypeTable != null) {
             if (yTypeTable.getPrimitiveTypesView() != null) {
                 for (String typeName : yTypeTable.getPrimitiveTypesView()) {
@@ -486,13 +557,12 @@ public class PigLatinCompiler implements CompilerUseCase {
                 }
             }
         }
-
         return list;
     }
 
     private List<ScopeInfoDTO> extractScopes(
-            com.piglatin.zetariano.domain.symboltable.SymbolTable zSymbolTable,
-            com.piglatin.y.domain.symboltable.SymbolTable ySymbolTable) {
+            ZetarianoSymbolTable zSymbolTable,
+            YSymbolTable ySymbolTable) {
 
         List<ScopeInfoDTO> list = new ArrayList<>();
 
@@ -513,16 +583,15 @@ public class PigLatinCompiler implements CompilerUseCase {
             }
         }
 
-        // Ámbito Global para Zetariano (.z)
+        // Ámbito Global para Zetariano
         if (zSymbolTable != null) {
             list.add(new ScopeInfoDTO("0", "None", "global (Zetariano)"));
         }
 
-        // Ámbito Global para Y (.y)
+        // Ámbito Global para Y
         if (ySymbolTable != null) {
             list.add(new ScopeInfoDTO("0", "None", "global (Y)"));
         }
-
         return list;
     }
 }

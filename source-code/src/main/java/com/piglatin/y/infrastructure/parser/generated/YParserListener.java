@@ -30,6 +30,16 @@ public interface YParserListener extends ParseTreeListener {
 	 */
 	void exitGlobalStructure(YParser.GlobalStructureContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link YParser#structDeclaration}.
+	 * @param ctx the parse tree
+	 */
+	void enterStructDeclaration(YParser.StructDeclarationContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link YParser#structDeclaration}.
+	 * @param ctx the parse tree
+	 */
+	void exitStructDeclaration(YParser.StructDeclarationContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link YParser#structBlock}.
 	 * @param ctx the parse tree
 	 */
@@ -51,16 +61,6 @@ public interface YParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFieldSimpleOrArray(YParser.FieldSimpleOrArrayContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link YParser#mainInstructions}.
-	 * @param ctx the parse tree
-	 */
-	void enterMainInstructions(YParser.MainInstructionsContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link YParser#mainInstructions}.
-	 * @param ctx the parse tree
-	 */
-	void exitMainInstructions(YParser.MainInstructionsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link YParser#functionDeclaration}.
 	 * @param ctx the parse tree
@@ -127,6 +127,18 @@ public interface YParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitBlock(YParser.BlockContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code InstructionStructDecl}
+	 * labeled alternative in {@link YParser#instruction}.
+	 * @param ctx the parse tree
+	 */
+	void enterInstructionStructDecl(YParser.InstructionStructDeclContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code InstructionStructDecl}
+	 * labeled alternative in {@link YParser#instruction}.
+	 * @param ctx the parse tree
+	 */
+	void exitInstructionStructDecl(YParser.InstructionStructDeclContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code InstructionAssignment}
 	 * labeled alternative in {@link YParser#instruction}.
@@ -224,18 +236,6 @@ public interface YParserListener extends ParseTreeListener {
 	 */
 	void exitInstructionJump(YParser.InstructionJumpContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code InstructionDeclaration}
-	 * labeled alternative in {@link YParser#instruction}.
-	 * @param ctx the parse tree
-	 */
-	void enterInstructionDeclaration(YParser.InstructionDeclarationContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code InstructionDeclaration}
-	 * labeled alternative in {@link YParser#instruction}.
-	 * @param ctx the parse tree
-	 */
-	void exitInstructionDeclaration(YParser.InstructionDeclarationContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code InstructionArrayDeclaration}
 	 * labeled alternative in {@link YParser#instruction}.
 	 * @param ctx the parse tree
@@ -247,6 +247,18 @@ public interface YParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitInstructionArrayDeclaration(YParser.InstructionArrayDeclarationContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code InstructionDeclaration}
+	 * labeled alternative in {@link YParser#instruction}.
+	 * @param ctx the parse tree
+	 */
+	void enterInstructionDeclaration(YParser.InstructionDeclarationContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code InstructionDeclaration}
+	 * labeled alternative in {@link YParser#instruction}.
+	 * @param ctx the parse tree
+	 */
+	void exitInstructionDeclaration(YParser.InstructionDeclarationContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code InstructionExpression}
 	 * labeled alternative in {@link YParser#instruction}.
@@ -442,17 +454,29 @@ public interface YParserListener extends ParseTreeListener {
 	 */
 	void exitExprPrimary(YParser.ExprPrimaryContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code ExprLogical}
+	 * Enter a parse tree produced by the {@code ExprAnd}
 	 * labeled alternative in {@link YParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void enterExprLogical(YParser.ExprLogicalContext ctx);
+	void enterExprAnd(YParser.ExprAndContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code ExprLogical}
+	 * Exit a parse tree produced by the {@code ExprAnd}
 	 * labeled alternative in {@link YParser#expression}.
 	 * @param ctx the parse tree
 	 */
-	void exitExprLogical(YParser.ExprLogicalContext ctx);
+	void exitExprAnd(YParser.ExprAndContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code ExprOr}
+	 * labeled alternative in {@link YParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterExprOr(YParser.ExprOrContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ExprOr}
+	 * labeled alternative in {@link YParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitExprOr(YParser.ExprOrContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code ExprMultiplicative}
 	 * labeled alternative in {@link YParser#expression}.

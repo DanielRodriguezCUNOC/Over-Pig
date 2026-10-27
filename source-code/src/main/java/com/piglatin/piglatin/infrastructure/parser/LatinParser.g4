@@ -47,7 +47,10 @@ instruction
 
 // Variable Declaration
 declaration
-    : ESTO ID COLON (type (expression)? | expression) SEMICOLON?
+    : ESTO ID COLON type (expression)? SEMICOLON?                       #DeclStandard
+    | ESTO ID COLON expression COLON type SEMICOLON?                    #DeclExplicitType
+    | ESTO ID COLON newInstance SEMICOLON?                              #DeclNewInstance
+    | ESTO ID COLON booleanLiteral SEMICOLON?                           #DeclBoolean
     ;
 
 arrayDeclaration
@@ -159,7 +162,8 @@ argumentList
 
 // Expressions
 expression
-    : booleanExpression                              #ExprBoolean
+    : NULL                                           #ExprNull
+    | booleanExpression                              #ExprBoolean
     | numericExpression                              #ExprNumeric
     | stringExpression                               #ExprString
     | arrayLiteral                                   #ExprArrayLiteral
@@ -189,6 +193,7 @@ comparisonOperand
     : numericExpression                                                         #CompNumeric
     | booleanLiteral                                                            #CompBoolean
     | stringExpression                                                          #CompString
+    | NULL                                                                      #CompNull
     ;
 
 relationalOp

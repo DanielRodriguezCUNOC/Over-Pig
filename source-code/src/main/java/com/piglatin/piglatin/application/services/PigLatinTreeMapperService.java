@@ -1,7 +1,7 @@
 package com.piglatin.piglatin.application.services;
 
 import com.piglatin.piglatin.domain.ast.principal.NodeProgram;
-import com.piglatin.piglatin.domain.ast.visitor.ASTBuilder;
+import com.piglatin.piglatin.domain.ast.visitor.PigLatinASTBuilder;
 import com.piglatin.piglatin.application.dto.ParserResultDTO;
 
 public class PigLatinTreeMapperService {
@@ -13,7 +13,7 @@ public class PigLatinTreeMapperService {
         if (parserResult == null || parserResult.getParseTree() == null) {
             return null;
         }
-        ASTBuilder builder = new ASTBuilder();
+        PigLatinASTBuilder builder = new PigLatinASTBuilder();
         return (NodeProgram) builder.visit(parserResult.getParseTree());
     }
 }

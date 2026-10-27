@@ -11,5 +11,7 @@ public record CompilationResultDTO(
         List<TypeDTO> types,
         List<ScopeDTO> scopes,
         List<ErrorDTO> errors,
-        String executionOutput
+        String executionOutput,
+        String c3dFilePath,
+        String asmFilePath
 ) {}

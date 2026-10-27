@@ -60,6 +60,7 @@ BOOL: 'bool';
 LITTERA: 'littera';
 VERUM: 'verum';
 FALSUS: 'falsus';
+NULL: 'null';
 SERIES: 'series';
 FINIS: 'finis';
 SI: 'si';

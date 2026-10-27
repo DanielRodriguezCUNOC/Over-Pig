@@ -132,11 +132,33 @@ public interface LatinParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitInstructionExpression(LatinParser.InstructionExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link LatinParser#declaration}.
+	 * Visit a parse tree produced by the {@code DeclStandard}
+	 * labeled alternative in {@link LatinParser#declaration}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitDeclaration(LatinParser.DeclarationContext ctx);
+	T visitDeclStandard(LatinParser.DeclStandardContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code DeclExplicitType}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code DeclNewInstance}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDeclNewInstance(LatinParser.DeclNewInstanceContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code DeclBoolean}
+	 * labeled alternative in {@link LatinParser#declaration}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDeclBoolean(LatinParser.DeclBooleanContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link LatinParser#arrayDeclaration}.
 	 * @param ctx the parse tree
@@ -355,6 +377,13 @@ public interface LatinParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitArgumentList(LatinParser.ArgumentListContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code ExprNull}
+	 * labeled alternative in {@link LatinParser#expression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprNull(LatinParser.ExprNullContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code ExprBoolean}
 	 * labeled alternative in {@link LatinParser#expression}.
 	 * @param ctx the parse tree
@@ -449,6 +478,13 @@ public interface LatinParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitCompString(LatinParser.CompStringContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code CompNull}
+	 * labeled alternative in {@link LatinParser#comparisonOperand}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitCompNull(LatinParser.CompNullContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link LatinParser#relationalOp}.
 	 * @param ctx the parse tree

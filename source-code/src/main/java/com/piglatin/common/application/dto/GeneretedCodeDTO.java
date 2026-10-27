@@ -1,24 +1,25 @@
 package com.piglatin.common.application.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * This class contains the C3D code an C executable code
+ * Código generado: C3D y RISC-V
  */
 @Getter
 @Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class GeneretedCodeDTO {
     private String c3dCode;
-    private String cCode;
+    /** Ensamblador RISC-V producido por C3DToRiscVConverter */
+    private String asmCode;
     private String entryPoint;
+    /** Ruta del archivo .3d exportado */
+    private String c3dFilePath;
+    /** Ruta del archivo .asm exportado */
+    private String asmFilePath;
 
-    public GeneretedCodeDTO() {
-    }
-
-    public GeneretedCodeDTO(String c3dCode, String cCode, String entryPoint) {
-        this.c3dCode = c3dCode;
-        this.cCode = cCode;
-        this.entryPoint = entryPoint;
-    }
 }

@@ -1,0 +1,703 @@
+package com.piglatin.zetariano.domain.semantic;
+
+import com.piglatin.zetariano.domain.ast.expressions.*;
+import com.piglatin.zetariano.domain.ast.expressions.literals.*;
+import com.piglatin.zetariano.domain.ast.principal.*;
+import com.piglatin.zetariano.domain.ast.statements.*;
+import com.piglatin.zetariano.domain.ast.visitor.Visitor;
+import com.piglatin.zetariano.domain.symboltable.*;
+import com.piglatin.zetariano.domain.types.ZetarianoTypeTable;
+import lombok.Getter;
+
+import java.util.List;
+
+@Getter
+public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
+
+    private final ZetarianoSymbolTable symbolTable;
+    private final ZetarianoTypeTable typeTable;
+    private final SemanticErrorReporter errorReporter;
+    private int loopDepth = 0;
+    private String currentClassName = null;
+    private String currentMethodReturnType = null;
+
+    public ZetarianoSymbolTableBuilder(ZetarianoTypeTable typeTable, SemanticErrorReporter errorReporter) {
+        this.symbolTable = new ZetarianoSymbolTable();
+        this.typeTable = typeTable;
+        this.errorReporter = errorReporter;
+    }
+
+    public ZetarianoSymbolTableBuilder(ZetarianoSymbolTable symbolTable, ZetarianoTypeTable typeTable, SemanticErrorReporter errorReporter) {
+        this.symbolTable = symbolTable;
+        this.typeTable = typeTable;
+        this.errorReporter = errorReporter;
+    }
+
+    @Override
+    public Void visitProgram(NodeProgram n) {
+        if (n == null) return null;
+
+        //* Pre-registrar todas las clases y herencias en el typeTable
+        if (n.getClasses() != null) {
+            for (NodeClassDeclaration classDecl : n.getClasses()) {
+                if (classDecl != null) {
+                    typeTable.registerClass(classDecl.getName(), classDecl.getSuperClass());
+                }
+            }
+        }
+
+        //* Procesar la declaración y miembros de las clases
+        if (n.getClasses() != null) {
+            for (NodeClassDeclaration classDecl : n.getClasses()) {
+                if (classDecl != null) classDecl.accept(this);
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitImport(NodeImport n) {
+        return null;
+    }
+
+    @Override
+    public Void visitClassDeclaration(NodeClassDeclaration n) {
+        if (n == null) return null;
+
+        //* Validate Heritage
+        validateHeritage(n);
+
+        if (!registerClass(n)) return null;
+
+        symbolTable.pushScope("class_" + n.getName());
+        currentClassName = n.getName();
+
+        //* Create and register the class symbol with his modifier and superclass
+        try {
+            registerClassMembers(n);
+            analyzeClassBodies(n);
+        } finally {
+            symbolTable.popScope();
+            currentClassName = null;
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitFieldDeclaration(NodeFieldDeclaration n) {
+
+        if (!typeTable.exists(n.getType())) {
+            errorReporter.reportError(
+                    "Type '" + n.getType() + "' is not defined.",
+                    n.getLine(), n.getColumn());
+        }
+
+        if (n.getInitializer() != null) {
+            n.getInitializer().accept(this);
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitMethodDeclaration(NodeMethodDeclaration n) {
+        //* Go to visitClassDeclaration.
+        //* Go to analyzeMethodBody.
+        return null;
+    }
+
+    @Override
+    public Void visitConstructorDeclaration(NodeConstructorDeclaration n) {
+        return null;
+    }
+
+    @Override
+    public Void visitParameter(NodeParameter n) {
+        //* Parameter is already declared in analyzeMethodBody or analyzeConstructorBody
+        return null;
+    }
+
+    @Override
+    public Void visitBlock(NodeBlock n) {
+        if (n == null) return null;
+        symbolTable.pushScope("block");
+        for (ASTNode instruction : n.getInstructions()) {
+            if (instruction != null) instruction.accept(this);
+        }
+        symbolTable.popScope();
+        return null;
+    }
+
+    @Override
+    public Void visitVariableDeclaration(NodeVariableDeclaration n) {
+        if (n == null) return null;
+
+
+        if (n.getInitializer() != null) {
+            n.getInitializer().accept(this);
+        }
+
+        if (!typeTable.exists(n.getType())) {
+            errorReporter.reportError(
+                    "Type '" + n.getType() + "' is not defined.",
+                    n.getLine(), n.getColumn());
+        }
+
+        VariableSymbol variableSymbol = new VariableSymbol(
+                n.getName(), n.getType(), n.getLine(), n.getColumn());
+
+        if (!symbolTable.declare(n.getName(), variableSymbol)) {
+            errorReporter.reportError(
+                    "Variable '" + n.getName() + "' is already defined in this scope.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitArrayDeclaration(NodeArrayDeclaration n) {
+        if (n == null) return null;
+
+        if (n.getSize() != null) {
+            n.getSize().accept(this);
+        }
+
+        if (!typeTable.exists(n.getType())) {
+            errorReporter.reportError(
+                    "Type '" + n.getType() + "' is not defined.",
+                    n.getLine(), n.getColumn());
+        }
+
+        if (n.getInitializer() != null) {
+            n.getInitializer().accept(this);
+        }
+
+        String arrayType = n.getType() + "[]".repeat(Math.max(1, n.getDimensions()));
+
+        ArraySymbol arraySymbol = new ArraySymbol(
+                n.getName(), arrayType,
+                n.getDimensions(), n.getType(), n.getLine(), n.getColumn());
+
+        if (!symbolTable.declare(n.getName(), arraySymbol)) {
+            errorReporter.reportError(
+                    "Array '" + n.getName() + "' is already declared in this scope.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitArrayInitializer(NodeArrayInitializer n) {
+        if (n == null) return null;
+        for (ASTNode element : n.getElements()) {
+            if (element != null) element.accept(this);
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitAssignment(NodeAssignment n) {
+        if (n == null) return null;
+        if (n.getTarget() != null) n.getTarget().accept(this);
+        if (n.getExpression() != null) n.getExpression().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitRead(NodeRead n) {
+        return null;
+    }
+
+    @Override
+    public Void visitPrint(NodePrint n) {
+        if (n == null) return null;
+        for (ASTNode item : n.getExpressions()) {
+            if (item != null) item.accept(this);
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitIf(NodeIf n) {
+        if (n == null) return null;
+        if (n.getCondition() != null) n.getCondition().accept(this);
+        if (n.getThenBlock() != null) n.getThenBlock().accept(this);
+        if (n.getElseBlock() != null) n.getElseBlock().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitSwitch(NodeSwitch n) {
+        if (n == null) return null;
+        if (n.getExpression() != null) n.getExpression().accept(this);
+
+        for (NodeCase c : n.getCases()) {
+            if (c != null) c.accept(this);
+        }
+        if (n.getDefaultBlock() != null) n.getDefaultBlock().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitCase(NodeCase n) {
+        if (n == null) return null;
+        if (n.getExpression() != null) n.getExpression().accept(this);
+        if (n.getBlock() != null) n.getBlock().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitWhile(NodeWhile n) {
+        if (n == null) return null;
+        if (n.getCondition() != null) n.getCondition().accept(this);
+
+        loopDepth++;
+        if (n.getBlock() != null) n.getBlock().accept(this);
+        loopDepth--;
+        return null;
+    }
+
+    @Override
+    public Void visitDoWhile(NodeDoWhile n) {
+        if (n == null) return null;
+
+        loopDepth++;
+        if (n.getBlock() != null) n.getBlock().accept(this);
+        loopDepth--;
+
+        if (n.getCondition() != null) n.getCondition().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitFor(NodeFor n) {
+        if (n == null) return null;
+
+        symbolTable.pushScope("for");
+
+        if (n.getInitializer() != null) n.getInitializer().accept(this);
+        if (n.getCondition() != null)      n.getCondition().accept(this);
+        if (n.getUpdate() != null)         n.getUpdate().accept(this);
+
+        loopDepth++;
+        if (n.getBlock() != null) n.getBlock().accept(this);
+        loopDepth--;
+
+        symbolTable.popScope();
+        return null;
+    }
+
+    @Override
+    public Void visitBreak(NodeBreak n) {
+        if (loopDepth <= 0) {
+            errorReporter.reportError(
+                    "'break' can only be used inside a loop.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitContinue(NodeContinue n) {
+        if (loopDepth <= 0) {
+            errorReporter.reportError(
+                    "'continue' can only be used inside a loop.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitReturn(NodeReturn n) {
+        if (n == null) return null;
+
+        if (currentMethodReturnType == null) {
+            errorReporter.reportError(
+                    "'return' can only be used inside a method.",
+                    n.getLine(), n.getColumn());
+            return null;
+        }
+
+        boolean returnsValue = n.getExpression() != null;
+
+        if (currentMethodReturnType.equals("void") && returnsValue) {
+            errorReporter.reportError(
+                    "Method returns void; cannot return a value.",
+                    n.getLine(), n.getColumn());
+        } else if (!currentMethodReturnType.equals("void") && !returnsValue) {
+            errorReporter.reportError(
+                    "Method must return a value of type '" + currentMethodReturnType + "'.",
+                    n.getLine(), n.getColumn());
+        }
+
+        if (returnsValue) n.getExpression().accept(this);
+        return null;
+    }
+
+
+    @Override
+    public Void visitTernaryExpression(NodeTernaryExpression n) {
+        if (n == null) return null;
+        n.getCondition().accept(this);
+        n.getTrueExpression().accept(this);
+        n.getFalseExpression().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitBinaryExpression(NodeBinaryExpression n) {
+        if (n == null) return null;
+        if (n.getLeft() != null)  n.getLeft().accept(this);
+        if (n.getRight() != null) n.getRight().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitUnaryExpression(NodeUnaryExpression n) {
+        if (n == null) return null;
+        if (n.getExpression() != null) n.getExpression().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitIdentifier(NodeIdentifier n) {
+        if ("this".equals(n.getName())) {
+            return null; // 'this' is always available within a class
+        }
+        if (!symbolTable.exists(n.getName())) {
+            errorReporter.reportError(
+                    "Variable '" + n.getName() + "' is used before declaration.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitFieldAccess(NodeFieldAccess n) {
+        if (n == null) return null;
+        if (n.getTarget() != null) n.getTarget().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitIndexAccess(NodeIndexAccess n) {
+        if (n == null) return null;
+        if (n.getArrayTarget() != null) n.getArrayTarget().accept(this);
+        if (n.getIndex() != null) n.getIndex().accept(this);
+        return null;
+    }
+
+    @Override
+    public Void visitMethodCall(NodeMethodCall n) {
+        if (n == null) return null;
+
+        if (n.getTarget() == null) {
+            if (currentClassName == null) {
+                errorReporter.reportError(
+                        "Method call outside of a class context.",
+                        n.getLine(), n.getColumn());
+            } else if (!symbolTable.existsMethod(currentClassName, n.getMethodName())) {
+                errorReporter.reportError(
+                        "Method '" + n.getMethodName() + "' is not declared in class '"
+                                + currentClassName + "'.",
+                        n.getLine(), n.getColumn());
+            }
+        } else {
+            n.getTarget().accept(this);
+
+        }
+
+        if (n.getArguments() != null) {
+            for (ASTNode arg : n.getArguments()) {
+                if (arg != null) arg.accept(this);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitNewObject(NodeNewObject n) {
+        if (n == null) return null;
+
+        if (!symbolTable.exists(n.getClassName())) {
+            errorReporter.reportError(
+                    "Class '" + n.getClassName() + "' is not defined.",
+                    n.getLine(), n.getColumn());
+        }
+
+        if (n.getArguments() != null) {
+            for (ASTNode arg : n.getArguments()) {
+                if (arg != null) arg.accept(this);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitNewArray(NodeNewArray n) {
+        if (n == null) return null;
+
+        if (!typeTable.exists(n.getType())) {
+            errorReporter.reportError(
+                    "Type '" + n.getType() + "' is not defined.",
+                    n.getLine(), n.getColumn());
+        }
+
+        for (ASTNode dim : n.getDimensions()) {
+            if (dim != null) dim.accept(this);
+        }
+        return null;
+    }
+
+
+    @Override public Void visitIntegerLiteral(NodeIntegerLiteral n) { return null; }
+    @Override public Void visitDecimalLiteral(NodeDecimalLiteral n) { return null; }
+    @Override public Void visitCharLiteral(NodeCharLiteral n)       { return null; }
+    @Override public Void visitStringLiteral(NodeStringLiteral n)   { return null; }
+    @Override public Void visitBooleanLiteral(NodeBooleanLiteral n) { return null; }
+    @Override public Void visitNullLiteral(NodeNullLiteral n)       { return null; }
+
+    @Override
+    public Void visitThis(NodeThis n) {
+        if (n == null) return null;
+        if (currentClassName == null) {
+            errorReporter.reportError(
+                    "Keyword 'this' can only be used inside a class context.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
+
+    private void registerField(NodeFieldDeclaration f) {
+        if (!typeTable.exists(f.getType()) || typeTable.isVoid(f.getType())) {
+            errorReporter.reportError(
+                    "Invalid field type '" + f.getType() + "'.",
+                    f.getLine(), f.getColumn());
+        }
+
+        Symbol fieldSymbol;
+        if (f.isArray()) {
+            int dims = Math.max(1, f.getDimensions());
+            String arrayType = f.getType() + "[]".repeat(dims);
+            fieldSymbol = new ArraySymbol(
+                    f.getName(), arrayType,
+                    dims, f.getType(), f.getLine(), f.getColumn());
+        } else {
+            fieldSymbol = new VariableSymbol(
+                    f.getModifier(), f.getName(), f.getType(), f.getLine(), f.getColumn());
+        }
+
+        if (!symbolTable.declare(f.getName(), fieldSymbol)) {
+            errorReporter.reportError(
+                    "Field '" + f.getName() + "' is already declared.",
+                    f.getLine(), f.getColumn());
+        } else if (currentClassName != null) {
+            symbolTable.declareField(currentClassName, f.getName(), fieldSymbol);
+        }
+    }
+
+    /** Busca el método en la superclase y, si no está, en sus ancestros. */
+    private boolean existsInHierarchy(String className, String methodName) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        String current = className;
+        while (current != null && visited.add(current)) {
+            if (symbolTable.existsMethod(current, methodName)) return true;
+            current = typeTable.getInheritanceMap().get(current);
+        }
+        return false;
+    }
+
+    private void registerMethodSignature(NodeMethodDeclaration m, String superClass) {
+
+        //* Validate @Override annotation
+        if (m.isOverride()) {
+            if (superClass == null){
+                errorReporter.reportError(
+                        "Method '" + m.getName() + "' is marked with @Override but the class '" + currentClassName + "' does not have a superclass.",
+                        m.getLine(), m.getColumn());
+            } else if (!existsInHierarchy(superClass, m.getName())) {
+                errorReporter.reportError(
+                        "Method '" + m.getName() + "' marked with @Override does not override any method in superclass '" + superClass + "'.",
+                        m.getLine(), m.getColumn());
+            }
+        }
+
+        MethodSymbol method = new MethodSymbol(
+                m.getModifier(), m.getName(), m.getReturnType(), buildParamTypes(m.getParameters()),
+                m.getLine(), m.getColumn());
+
+        if (!symbolTable.declareMethod(currentClassName, method)) {
+            errorReporter.reportError(
+                    "Method '" + m.getName() + "' is already declared in class '"
+                            + currentClassName + "'.",
+                    m.getLine(), m.getColumn());
+        }
+    }
+
+    private void registerConstructorSignature(NodeConstructorDeclaration c) {
+
+        //* Validate that the constructor name matches the class name
+
+        if (!c.getName().equals(currentClassName)) {
+            errorReporter.reportError(
+                    "Constructor name '" + c.getName() + "' does not match the class name '"
+                            + currentClassName + "'.",
+                    c.getLine(), c.getColumn());
+        }
+
+        MethodSymbol ctor = new MethodSymbol(
+                c.getModifier(), c.getName(), "void", buildParamTypes(c.getParameters()),
+                c.getLine(), c.getColumn());
+
+        if (!symbolTable.declareMethod(currentClassName, ctor)) {
+            errorReporter.reportError(
+                    "Constructor '" + c.getName() + "' is already declared in class '"
+                            + currentClassName + "'.",
+                    c.getLine(), c.getColumn());
+        }
+    }
+
+    private void analyzeMethodBody(NodeMethodDeclaration m) {
+        symbolTable.pushScope("method_" + m.getName());
+        String savedReturn = currentMethodReturnType;
+        currentMethodReturnType = m.getReturnType();
+
+        declareParameters(m.getParameters());
+
+        if (m.getBody() != null) m.getBody().accept(this);
+
+        currentMethodReturnType = savedReturn;
+        symbolTable.popScope();
+    }
+
+    private void analyzeConstructorBody(NodeConstructorDeclaration c) {
+        symbolTable.pushScope("ctor_" + c.getName());
+        String savedReturn = currentMethodReturnType;
+        currentMethodReturnType = "void";
+
+        declareParameters(c.getParameters());
+
+        if (c.getBody() != null) c.getBody().accept(this);
+
+        currentMethodReturnType = savedReturn;
+        symbolTable.popScope();
+    }
+
+    private void declareParameters(java.util.List<NodeParameter> params) {
+        if (params == null) return;
+        for (NodeParameter p : params) {
+            if (!typeTable.exists(p.getType())) {
+                errorReporter.reportError(
+                        "Type '" + p.getType() + "' is not defined.",
+                        p.getLine(), p.getColumn());
+                continue;
+            }
+            VariableSymbol param = new VariableSymbol(
+                    p.getName(), p.getType(), p.getLine(), p.getColumn());
+            if (!symbolTable.declare(p.getName(), param)) {
+                errorReporter.reportError(
+                        "Parameter '" + p.getName() + "' is already declared.",
+                        p.getLine(), p.getColumn());
+            }
+        }
+    }
+
+    private List<String> buildParamTypes(java.util.List<NodeParameter> params) {
+        java.util.List<String> types = new java.util.ArrayList<>();
+        if (params != null) {
+            for (NodeParameter p : params) types.add(p.getType());
+        }
+        return types;
+    }
+
+    private void validateHeritage(NodeClassDeclaration node) {
+        String className = node.getName();
+        String superClass = node.getSuperClass();
+
+        if (superClass == null) {
+            return;
+        }
+
+        if (superClass.equals(className)) {
+            errorReporter.reportError(
+                    "Class '" + className + "' cannot inherit from itself.",
+                    node.getLine(),
+                    node.getColumn()
+            );
+            return;
+        }
+
+        if (!typeTable.exists(superClass)) {
+            errorReporter.reportError(
+                    "Superclass '" + superClass + "' is not defined.",
+                    node.getLine(),
+                    node.getColumn()
+            );
+        }
+    }
+
+    private boolean registerClass(NodeClassDeclaration node) {
+        String className = node.getName();
+        String superClass = node.getSuperClass();
+
+        ClassSymbol classSymbol = new ClassSymbol(
+                className,
+                node.getLine(),
+                node.getColumn()
+        );
+
+        if (!symbolTable.declare(className, classSymbol)) {
+            errorReporter.reportError(
+                    "Class '" + className + "' is already declared.",
+                    node.getLine(),
+                    node.getColumn()
+            );
+
+            return false;
+        }
+
+        typeTable.registerClass(className, superClass);
+        return true;
+    }
+
+    private void registerClassMembers(NodeClassDeclaration node) {
+        for (ASTNode member : node.getMembers()) {
+            registerMember(member, node.getSuperClass());
+        }
+    }
+
+    private void registerMember(ASTNode member, String superClass) {
+        if (member instanceof NodeMethodDeclaration method) {
+            registerMethodSignature(method, superClass);
+            return;
+        }
+
+        if (member instanceof NodeConstructorDeclaration constructor) {
+            registerConstructorSignature(constructor);
+            return;
+        }
+
+        if (member instanceof NodeFieldDeclaration field) {
+            registerField(field);
+        }
+    }
+
+    private void analyzeClassBodies(NodeClassDeclaration node) {
+        for (ASTNode member : node.getMembers()) {
+            analyzeMemberBody(member);
+        }
+    }
+
+    private void analyzeMemberBody(ASTNode member) {
+        if (member instanceof NodeMethodDeclaration method) {
+            analyzeMethodBody(method);
+            return;
+        }
+
+        if (member instanceof NodeConstructorDeclaration constructor) {
+            analyzeConstructorBody(constructor);
+        }
+    }
+}

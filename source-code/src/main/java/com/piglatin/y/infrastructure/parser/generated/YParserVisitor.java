@@ -24,6 +24,12 @@ public interface YParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitGlobalStructure(YParser.GlobalStructureContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link YParser#structDeclaration}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStructDeclaration(YParser.StructDeclarationContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link YParser#structBlock}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -36,12 +42,6 @@ public interface YParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFieldSimpleOrArray(YParser.FieldSimpleOrArrayContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link YParser#mainInstructions}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitMainInstructions(YParser.MainInstructionsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link YParser#functionDeclaration}.
 	 * @param ctx the parse tree
@@ -81,6 +81,13 @@ public interface YParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitBlock(YParser.BlockContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code InstructionStructDecl}
+	 * labeled alternative in {@link YParser#instruction}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInstructionStructDecl(YParser.InstructionStructDeclContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code InstructionAssignment}
 	 * labeled alternative in {@link YParser#instruction}.
@@ -138,19 +145,19 @@ public interface YParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitInstructionJump(YParser.InstructionJumpContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code InstructionDeclaration}
-	 * labeled alternative in {@link YParser#instruction}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitInstructionDeclaration(YParser.InstructionDeclarationContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code InstructionArrayDeclaration}
 	 * labeled alternative in {@link YParser#instruction}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitInstructionArrayDeclaration(YParser.InstructionArrayDeclarationContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code InstructionDeclaration}
+	 * labeled alternative in {@link YParser#instruction}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInstructionDeclaration(YParser.InstructionDeclarationContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code InstructionExpression}
 	 * labeled alternative in {@link YParser#instruction}.
@@ -267,12 +274,19 @@ public interface YParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitExprPrimary(YParser.ExprPrimaryContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ExprLogical}
+	 * Visit a parse tree produced by the {@code ExprAnd}
 	 * labeled alternative in {@link YParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitExprLogical(YParser.ExprLogicalContext ctx);
+	T visitExprAnd(YParser.ExprAndContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ExprOr}
+	 * labeled alternative in {@link YParser#expression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprOr(YParser.ExprOrContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code ExprMultiplicative}
 	 * labeled alternative in {@link YParser#expression}.

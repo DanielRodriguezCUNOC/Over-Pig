@@ -233,13 +233,49 @@ public class LatinParserBaseListener implements LatinParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterDeclaration(LatinParser.DeclarationContext ctx) { }
+	@Override public void enterDeclStandard(LatinParser.DeclStandardContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitDeclaration(LatinParser.DeclarationContext ctx) { }
+	@Override public void exitDeclStandard(LatinParser.DeclStandardContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDeclExplicitType(LatinParser.DeclExplicitTypeContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDeclNewInstance(LatinParser.DeclNewInstanceContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDeclNewInstance(LatinParser.DeclNewInstanceContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDeclBoolean(LatinParser.DeclBooleanContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDeclBoolean(LatinParser.DeclBooleanContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -641,6 +677,18 @@ public class LatinParserBaseListener implements LatinParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterExprNull(LatinParser.ExprNullContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitExprNull(LatinParser.ExprNullContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterExprBoolean(LatinParser.ExprBooleanContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -804,6 +852,18 @@ public class LatinParserBaseListener implements LatinParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitCompString(LatinParser.CompStringContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterCompNull(LatinParser.CompNullContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCompNull(LatinParser.CompNullContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

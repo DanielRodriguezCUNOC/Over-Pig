@@ -2,18 +2,22 @@ package com.piglatin.y.application.services;
 
 import com.piglatin.common.application.dto.*;
 import com.piglatin.common.application.ports.input.CompilerUseCase;
-import com.piglatin.common.infrastructure.codegen.C3DContext;
-import com.piglatin.common.infrastructure.codegen.C3DToCConverter;
-import com.piglatin.common.infrastructure.codegen.Quadruple;
+import com.piglatin.common.infrastructure.codegen.ir.C3DContext;
+import com.piglatin.common.infrastructure.codegen.ir.C3DEmitter;
+import com.piglatin.common.infrastructure.codegen.ir.Instruction;
+import com.piglatin.common.infrastructure.codegen.ir.instructions.calls.ReturnVoid;
+import com.piglatin.common.infrastructure.codegen.ir.instructions.controlflow.Label;
+import com.piglatin.common.infrastructure.codegen.riscv.C3DToRiscVConverter;
 import com.piglatin.y.domain.ast.principal.NodeProgram;
-import com.piglatin.y.domain.ast.visitor.ASTBuilder;
-import com.piglatin.y.domain.semantic.SemanticAnalyzer;
+import com.piglatin.y.domain.ast.visitor.YASTBuilder;
+import com.piglatin.y.domain.semantic.YSemanticAnalyzer;
 import com.piglatin.y.domain.semantic.SemanticContext;
 import com.piglatin.y.domain.symboltable.FunctionSymbol;
 import com.piglatin.y.infrastructure.codegen.c3d.StructLayout;
 import com.piglatin.y.infrastructure.codegen.c3d.YC3DVisitor;
 import com.piglatin.y.infrastructure.parser.generated.YLexer;
 import com.piglatin.y.infrastructure.parser.generated.YParser;
+import com.piglatin.zetariano.domain.ast.visitor.ZetarianoASTBuilder;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.ParseTree;
 
@@ -21,6 +25,8 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class YCompiler implements CompilerUseCase {
 
@@ -68,10 +74,10 @@ public class YCompiler implements CompilerUseCase {
                     System.currentTimeMillis() - startTime);
         }
 
-        ASTBuilder astBuilder = new ASTBuilder();
+        YASTBuilder astBuilder = new YASTBuilder();
         NodeProgram ast = (NodeProgram) astBuilder.visit(parseTree);
 
-        SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(request.getFileName());
+        YSemanticAnalyzer semanticAnalyzer = new YSemanticAnalyzer(request.getFileName());
         SemanticContext context = semanticAnalyzer.analyze(ast);
 
         if (context.getErrorReporter() != null && context.getErrorReporter().hasErrors()) {
@@ -95,14 +101,13 @@ public class YCompiler implements CompilerUseCase {
         C3DContext c3dContext = new C3DContext();
         StructLayout structLayout = new StructLayout();
 
+        // main: call main_0; ret
+        c3dContext.emit(new Label("main"));
         FunctionSymbol mainFn = context.getSymbolTable().lookupFunction("main", 0);
         if (mainFn != null) {
-            String lret = c3dContext.newLabel();
-            c3dContext.emit("CALL", "main_0", "0", lret);
-            c3dContext.emitLabel(lret);
-            String discard = c3dContext.newTemp();
-            c3dContext.emit("LOAD_RET", null, null, discard);
+            new C3DEmitter(c3dContext).emitCallVoid("main_0", 0, 0);
         }
+        c3dContext.emit(new ReturnVoid());
 
         YC3DVisitor yVisitor = new YC3DVisitor(
                 c3dContext,
@@ -116,9 +121,9 @@ public class YCompiler implements CompilerUseCase {
                     loadZSiblingClasses(request.getProjectDirectory(), request.getCurrentFileName());
             for (com.piglatin.zetariano.domain.ast.principal.NodeProgram z : zSiblings) {
                 try {
-                    if (z == null || z.getClassDeclaration() == null) continue;
+                    if (z == null || z.getClasses() == null || z.getClasses().isEmpty()) continue;
                     System.err.println("[YCompiler] Hermano .z detectado: "
-                            + z.getClassDeclaration().getName()
+                            + z.getClasses().get(0).getName()
                             + " (no emitido, requiere tablas de Zetariano)");
                 } catch (Exception e) {
                     System.err.println("[YCompiler] Error con hermano .z: "
@@ -127,14 +132,22 @@ public class YCompiler implements CompilerUseCase {
             }
         }
 
-        StringBuilder sb = new StringBuilder();
-        for (Quadruple q : c3dContext.getQuadruples()) {
-            sb.append(q.toString()).append("\n");
-        }
-        String c3dCode = sb.toString();
-        String cCode = C3DToCConverter.convertToC(c3dContext);
+        // C3D -> RISC-V
+        List<Instruction> instructions = c3dContext.getInstructions();
+        Map<String, String> strings = Map.of();
+        Map<String, List<String>> vtables = Map.of();
 
-        GeneretedCodeDTO generatedCode = new GeneretedCodeDTO(c3dCode, cCode, "main");
+        C3DToRiscVConverter riscv = new C3DToRiscVConverter(instructions, strings, vtables);
+        String asm = riscv.convert();
+
+        String c3dCode = instructions.stream()
+                .map(Instruction::toC3D)
+                .collect(Collectors.joining("\n"));
+
+        GeneretedCodeDTO generatedCode = new GeneretedCodeDTO();
+        generatedCode.setC3dCode(c3dCode);
+        generatedCode.setAsmCode(asm);
+        generatedCode.setEntryPoint("main");
         return new CompileResponseDTO(true, errors, generatedCode, null,
                 System.currentTimeMillis() - startTime);
     }
@@ -167,13 +180,13 @@ public class YCompiler implements CompilerUseCase {
                         new com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoParser(tok);
                 parser.removeErrorListeners();
 
-                org.antlr.v4.runtime.tree.ParseTree tree = parser.program();
-                com.piglatin.zetariano.domain.ast.visitor.ASTBuilder builder =
-                        new com.piglatin.zetariano.domain.ast.visitor.ASTBuilder();
+                org.antlr.v4.runtime.tree.ParseTree tree = parser.compilationUnit();
+                ZetarianoASTBuilder builder =
+                        new ZetarianoASTBuilder();
 
                 Object built = builder.visit(tree);
                 if (built instanceof com.piglatin.zetariano.domain.ast.principal.NodeProgram program) {
-                    if (program.getClassDeclaration() != null) {
+                    if (program.getClasses() != null && !program.getClasses().isEmpty()) {
                         siblings.add(program);
                     }
                 }
