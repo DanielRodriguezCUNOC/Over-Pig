@@ -628,7 +628,9 @@ public class YC3DVisitor implements Visitor<String> {
             case "*" -> ctx.emit(dbl ? new MulDouble(res, l, r) : new MulInt(res, l, r));
             case "/" -> ctx.emit(dbl ? new DivDouble(res, l, r) : new DivInt(res, l, r));
             case "<" -> ctx.emit(dbl ? new LtDouble(res, l, r) : new LtInt(res, l, r));
+            case "<=" -> ctx.emit(dbl ? new LeDouble(res, l, r) : new LeInt(res, l, r));
             case ">" -> ctx.emit(dbl ? new GtDouble(res, l, r) : new GtInt(res, l, r));
+            case ">=" -> ctx.emit(dbl ? new GeDouble(res, l, r) : new GeInt(res, l, r));
             default -> throw new IllegalStateException("Operador binario no soportado: " + op);
         }
         return res;

@@ -89,6 +89,18 @@ public class YParserBaseListener implements YParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterReturnType(YParser.ReturnTypeContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReturnType(YParser.ReturnTypeContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterParameterList(YParser.ParameterListContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -593,18 +605,6 @@ public class YParserBaseListener implements YParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterPrimaryLvalue(YParser.PrimaryLvalueContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitPrimaryLvalue(YParser.PrimaryLvalueContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterPrimaryFunctionCall(YParser.PrimaryFunctionCallContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -612,6 +612,18 @@ public class YParserBaseListener implements YParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitPrimaryFunctionCall(YParser.PrimaryFunctionCallContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterPrimaryLvalue(YParser.PrimaryLvalueContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitPrimaryLvalue(YParser.PrimaryLvalueContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
