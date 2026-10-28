@@ -404,8 +404,18 @@ public class PigLatinCompiler implements CompilerUseCase {
 
         // Capturar las tablas resultantes.
         if (yCtx != null) {
+            if (yCtx.hasErrors() || (yCtx.getErrorReporter() != null && yCtx.getErrorReporter().hasErrors())) {
+                for (CustomErrorDTO err : yCtx.getErrorReporter().getErrors()) {
+                    result.errors.add(new CompilationErrorDTO(
+                            CompilationStage.SEMANTIC_ANALYSIS,
+                            err.message(),
+                            err.line(),
+                            err.column(),
+                            fileName));
+                }
+            }
             if (yCtx.getSymbolTable() != null) {
-                result.ySymbolTable = yCtx.getSymbolTable();
+                result.ySymbolTable.mergeFrom(yCtx.getSymbolTable());
             }
             if (yCtx.getTypeTable() != null) {
                 // Preservar structs ya registradas
@@ -414,7 +424,7 @@ public class PigLatinCompiler implements CompilerUseCase {
                         if (s != null) yCtx.getTypeTable().registerStruct(s.getName());
                     }
                 }
-                result.yTypeTable = yCtx.getTypeTable();
+                result.yTypeTable.mergeFrom(yCtx.getTypeTable());
             }
         }
         result.yPrograms.add(program);

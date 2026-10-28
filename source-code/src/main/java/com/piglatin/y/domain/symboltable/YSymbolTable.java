@@ -68,4 +68,13 @@ public class YSymbolTable {
         return allDeclaredSymbols;
     }
 
+    public void mergeFrom(YSymbolTable other) {
+        if (other == null) return;
+        other.functions.forEach(this.functions::putIfAbsent);
+        other.structFields.forEach((structName, fields) -> {
+            Map<String, Symbol> targetFields = this.structFields.computeIfAbsent(structName, k -> new HashMap<>());
+            fields.forEach(targetFields::putIfAbsent);
+        });
+        this.allDeclaredSymbols.addAll(other.allDeclaredSymbols);
+    }
 }

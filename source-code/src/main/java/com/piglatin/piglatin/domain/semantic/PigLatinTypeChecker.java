@@ -89,7 +89,9 @@ public class PigLatinTypeChecker implements Visitor<String> {
     public String visitVariableDeclaration(NodeVariableDeclaration n) {
         String declaredType = normalizeType(n.getType());
 
-        String exprType = n.getInitializer() != null ? n.getInitializer().accept(this) : null;
+        String exprType = n.getInitializer() != null
+                ? evaluateWithExpectedType(n.getInitializer(), declaredType)
+                : null;
         if (exprType != null) exprType = normalizeType(exprType);
 
         if (declaredType == null) {
@@ -98,7 +100,7 @@ public class PigLatinTypeChecker implements Visitor<String> {
             n.setType(declaredType);
         } else {
             n.setType(declaredType);
-            if (exprType != null && !areTypesCompatible(declaredType, exprType)) {
+            if (exprType != null && !isFieldCompatible(declaredType, exprType)) {
                 errorReporter.reportError("Incompatible type in declaration: expected '" +
                         declaredType + "' but found '" + exprType + "'", n.getLine(), n.getColumn());
             }
@@ -156,8 +158,8 @@ public class PigLatinTypeChecker implements Visitor<String> {
 
         if (n.getInitialValues() != null) {
             for (ASTNode valNode : n.getInitialValues()) {
-                String valType = valNode.accept(this);
-                if (valType != null && !areTypesCompatible(elementType, valType)) {
+                String valType = evaluateWithExpectedType(valNode, elementType);
+                if (valType != null && !isFieldCompatible(elementType, valType)) {
                     errorReporter.reportError("Incompatible array element type: expected '" +
                                     elementType + "' but found '" + valType + "'",
                             valNode.getLine(), valNode.getColumn());
@@ -175,11 +177,21 @@ public class PigLatinTypeChecker implements Visitor<String> {
 
     @Override
     public String visitAssignment(NodeAssignment n) {
-        String rightType = n.getExpression() != null ? n.getExpression().accept(this) : null;
         String leftType = n.getLvalue() != null ? n.getLvalue().accept(this) : null;
+        if (leftType != null) leftType = normalizeType(leftType);
 
-        if (!isError(leftType) && !isError(rightType)) {
-            if (!areTypesCompatible(leftType, rightType)) {
+        if (isError(leftType)) {
+            if (n.getExpression() != null) n.getExpression().accept(this);
+            return null;
+        }
+
+        String rightType = n.getExpression() != null
+                ? evaluateWithExpectedType(n.getExpression(), leftType)
+                : null;
+        if (rightType != null) rightType = normalizeType(rightType);
+
+        if (!isError(rightType)) {
+            if (!isFieldCompatible(leftType, rightType)) {
                 errorReporter.reportError("Cannot assign '" + rightType + "' to '" +
                         leftType + "'", n.getLine(), n.getColumn());
             }
@@ -277,9 +289,12 @@ public class PigLatinTypeChecker implements Visitor<String> {
     @Override
     public String visitReturn(NodeReturn n) {
         String expectedType = peekReturn();
-        String exprType = n.getExpression() != null ? n.getExpression().accept(this) : VOID_TYPE;
+        String exprType = n.getExpression() != null
+                ? evaluateWithExpectedType(n.getExpression(), expectedType)
+                : VOID_TYPE;
+        if (exprType != null) exprType = normalizeType(exprType);
 
-        if (expectedType != null && !areTypesCompatible(expectedType, exprType)) {
+        if (expectedType != null && !isFieldCompatible(expectedType, exprType)) {
             errorReporter.reportError("Incompatible return type: expected '" +
                     expectedType + "' but found '" + exprType + "'", n.getLine(), n.getColumn());
         }
@@ -301,16 +316,20 @@ public class PigLatinTypeChecker implements Visitor<String> {
     @Override
     public String visitNewInstance(NodeNewInstance n) {
         List<ASTNode> args = argumentsOf(n.getArguments());
-        List<String> argTypes = typesOf(args);
         String className = n.getClassName();
 
         if (!imported.isClass(className)) {
+            typesOf(args);
             errorReporter.reportError("Class '" + className +
                     "' is not defined in any imported .z file", n.getLine(), n.getColumn());
             return ERROR;
         }
 
         ImportedSymbols.Signature constructor = imported.resolveConstructor(className, args.size());
+        List<String> argTypes = constructor != null
+                ? evaluateArgs(args, constructor.paramTypes())
+                : typesOf(args);
+
         if (constructor == null) {
             //* A class without a declared constructor only accepts 'novus X()'
             if (!args.isEmpty()) {
@@ -330,15 +349,13 @@ public class PigLatinTypeChecker implements Visitor<String> {
 
         //* name(args): free function of a .y file
         if (target instanceof NodeIdentifier id) {
-            List<String> argTypes = typesOf(args);
-            return checkFreeCall(n, id.getId(), args, argTypes);
+            return checkFreeCall(n, id.getId(), args);
         }
 
         //* receiver.name(args): method of an object of a .z class
         if (target instanceof NodeFieldAccess access && access.getCurrentNode() != null) {
             String receiverType = access.getCurrentNode().accept(this);
-            List<String> argTypes = typesOf(args);
-            return checkObjectCall(n, receiverType, access.getFieldName(), args, argTypes);
+            return checkObjectCall(n, receiverType, access.getFieldName(), args);
         }
 
         typesOf(args);
@@ -358,30 +375,34 @@ public class PigLatinTypeChecker implements Visitor<String> {
 
         if (n.getCurrentNode() != null) {
             String receiverType = n.getCurrentNode().accept(this);
-            List<String> argTypes = typesOf(args);
-            return checkObjectCall(n, receiverType, n.getFunctionName(), args, argTypes);
+            return checkObjectCall(n, receiverType, n.getFunctionName(), args);
         }
 
-        List<String> argTypes = typesOf(args);
-        return checkFreeCall(n, n.getFunctionName(), args, argTypes);
+        return checkFreeCall(n, n.getFunctionName(), args);
     }
 
-    private String checkFreeCall(ASTNode node, String name, List<ASTNode> args, List<String> argTypes) {
+    private String checkFreeCall(ASTNode node, String name, List<ASTNode> args) {
         ImportedSymbols.Signature function = imported.resolveFunction(name, args.size());
         if (function == null) {
+            typesOf(args);
             errorReporter.reportError("Function '" + name + "' that takes " + args.size() +
                     " argument(s) is not defined in any imported .y file", node.getLine(), node.getColumn());
             return ERROR;
         }
+        List<String> argTypes = evaluateArgs(args, function.paramTypes());
         checkArguments("function '" + name + "'", function, args, argTypes);
         return function.returnType() != null ? function.returnType() : VOID_TYPE;
     }
 
     private String checkObjectCall(ASTNode node, String receiverType, String methodName,
-                                   List<ASTNode> args, List<String> argTypes) {
-        if (isError(receiverType)) return ERROR;
+                                   List<ASTNode> args) {
+        if (isError(receiverType)) {
+            typesOf(args);
+            return ERROR;
+        }
 
         if (!imported.isClass(receiverType)) {
+            typesOf(args);
             errorReporter.reportError("Cannot call method '" + methodName + "' on a value of type '" +
                             receiverType + "'; only objects of imported .z classes have methods",
                     node.getLine(), node.getColumn());
@@ -390,10 +411,12 @@ public class PigLatinTypeChecker implements Visitor<String> {
 
         ImportedSymbols.Signature method = imported.resolveMethod(receiverType, methodName, args.size());
         if (method == null) {
+            typesOf(args);
             errorReporter.reportError("Class '" + receiverType + "' has no method '" + methodName +
                     "' that takes " + args.size() + " argument(s)", node.getLine(), node.getColumn());
             return ERROR;
         }
+        List<String> argTypes = evaluateArgs(args, method.paramTypes());
         checkArguments("method '" + receiverType + "." + methodName + "'", method, args, argTypes);
         return method.returnType() != null ? method.returnType() : VOID_TYPE;
     }
@@ -406,12 +429,33 @@ public class PigLatinTypeChecker implements Visitor<String> {
         for (int i = 0; i < count; i++) {
             String paramType = params.get(i);
             String argType = argTypes.get(i);
-            if (!areTypesCompatible(paramType, argType)) {
+            if (!isFieldCompatible(paramType, argType)) {
                 ASTNode arg = args.get(i);
                 errorReporter.reportError("Argument " + (i + 1) + " of " + what + " expects '" +
                         paramType + "' but found '" + argType + "'", arg.getLine(), arg.getColumn());
             }
         }
+    }
+
+    private List<String> evaluateArgs(List<ASTNode> args, List<String> paramTypes) {
+        if (args == null) return List.of();
+        if (paramTypes == null) return typesOf(args);
+
+        List<String> types = new ArrayList<>();
+        for (int i = 0; i < args.size(); i++) {
+            ASTNode arg = args.get(i);
+            if (arg == null) {
+                types.add(ERROR);
+                continue;
+            }
+            if (i < paramTypes.size()) {
+                String expected = paramTypes.get(i);
+                types.add(evaluateWithExpectedType(arg, expected));
+            } else {
+                types.add(arg.accept(this));
+            }
+        }
+        return types;
     }
 
     private List<ASTNode> argumentsOf(List<ASTNode> arguments) {
@@ -536,12 +580,103 @@ public class PigLatinTypeChecker implements Visitor<String> {
 
     @Override
     public String visitStructLiteral(NodeStructLiteral n) {
+        if (n.getStructName() != null && isStructType(n.getStructName())) {
+            return checkStructLiteral(n.getStructName(), n.getValues(), n.getLine(), n.getColumn());
+        }
         if (n.getValues() != null) {
             for (ASTNode value : n.getValues()) {
                 if (value != null) value.accept(this);
             }
         }
         return ERROR;
+    }
+
+    private boolean isStructType(String type) {
+        return type != null && !isArray(type) && imported.isStruct(type);
+    }
+
+    private boolean isFieldCompatible(String expected, String actual) {
+        if (isError(expected) || isError(actual)) return true;
+        if (isArray(expected) && isArray(actual)) {
+            return isFieldCompatible(expected.substring(ARRAY_PREFIX.length()),
+                    actual.substring(ARRAY_PREFIX.length()));
+        }
+        if ("NUMERUS".equals(expected) && "DECIMALIS".equals(actual)) {
+            return false;
+        }
+        return areTypesCompatible(expected, actual);
+    }
+
+    private String evaluateWithExpectedType(ASTNode expr, String expectedType) {
+        if (expr == null) return null;
+        if (expectedType == null) return expr.accept(this);
+
+        String normalizedExpected = normalizeType(expectedType);
+        if (isStructType(normalizedExpected)) {
+            if (expr instanceof NodeArrayLiteral lit) {
+                return checkStructLiteral(normalizedExpected, lit.getValues(), lit.getLine(), lit.getColumn());
+            }
+            if (expr instanceof NodeStructLiteral lit) {
+                return checkStructLiteral(normalizedExpected, lit.getValues(), lit.getLine(), lit.getColumn());
+            }
+        } else if (isArray(normalizedExpected)) {
+            if (expr instanceof NodeArrayLiteral lit) {
+                return checkArrayLiteralWithExpected(normalizedExpected, lit);
+            }
+        }
+        return expr.accept(this);
+    }
+
+    private String checkArrayLiteralWithExpected(String expectedArrayType, NodeArrayLiteral literal) {
+        String elementType = expectedArrayType.substring(ARRAY_PREFIX.length());
+        if (literal.getValues() != null) {
+            for (ASTNode elem : literal.getValues()) {
+                if (elem == null) continue;
+                String elemType = evaluateWithExpectedType(elem, elementType);
+                if (!isError(elemType) && !isFieldCompatible(elementType, elemType)) {
+                    errorReporter.reportError("Array element expects '" + elementType +
+                            "' but found '" + elemType + "'", elem.getLine(), elem.getColumn());
+                }
+            }
+        }
+        return expectedArrayType;
+    }
+
+    private String checkStructLiteral(String structType, List<ASTNode> values, int line, int column) {
+        if (!isStructType(structType)) {
+            return ERROR;
+        }
+
+        List<ImportedSymbols.Field> fields = imported.structFields(structType);
+        if (fields == null) fields = List.of();
+
+        List<ASTNode> inits = values != null ? values : List.of();
+
+        if (inits.size() != fields.size()) {
+            errorReporter.reportError("Struct '" + structType + "' expects " + fields.size() +
+                    " field(s) but found " + inits.size(), line, column);
+        }
+
+        int common = Math.min(inits.size(), fields.size());
+        for (int i = 0; i < common; i++) {
+            ASTNode value = inits.get(i);
+            ImportedSymbols.Field field = fields.get(i);
+            if (value == null) continue;
+
+            String actualType = evaluateWithExpectedType(value, field.type());
+            if (!isError(actualType) && !isFieldCompatible(field.type(), actualType)) {
+                errorReporter.reportError("Field '" + field.name() + "' of struct '" + structType +
+                        "' expects '" + field.type() + "' but found '" + actualType + "'",
+                        value.getLine(), value.getColumn());
+            }
+        }
+
+        for (int i = common; i < inits.size(); i++) {
+            ASTNode extra = inits.get(i);
+            if (extra != null) extra.accept(this);
+        }
+
+        return structType;
     }
 
     @Override

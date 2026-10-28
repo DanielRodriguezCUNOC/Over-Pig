@@ -110,6 +110,19 @@ public class SiblingImportedSymbols implements ImportedSymbols {
         return field == null ? null : toPigType(field.typeName());
     }
 
+    @Override
+    public List<Field> structFields(String structName) {
+        if (yStructLayout == null || !yStructLayout.hasStruct(structName)) {
+            return List.of();
+        }
+        List<Field> fields = new ArrayList<>();
+        for (StructLayout.FieldInfo info : yStructLayout.fieldsOf(structName)) {
+            String pigType = toPigType(info.yType());
+            fields.add(new Field(info.name(), pigType, info.isArray()));
+        }
+        return List.copyOf(fields);
+    }
+
     private List<String> paramTypes(VtableLayout.MethodInfo method) {
         List<String> params = new ArrayList<>();
         if (method.paramTypes() != null) {
