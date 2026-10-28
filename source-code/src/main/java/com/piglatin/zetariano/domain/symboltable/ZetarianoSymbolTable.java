@@ -72,9 +72,9 @@ public class ZetarianoSymbolTable {
     }
 
     public boolean declareMethod(String className, MethodSymbol m) {
-        return classMethods
-                .computeIfAbsent(className, k -> new HashMap<>())
-                .putIfAbsent(m.getName() + "/" + m.getParameterTypes().size(), m) == null;
+        Map<String, MethodSymbol> methods = classMethods.computeIfAbsent(className, k -> new HashMap<>());
+        String sig = m.getName() + "/" + String.join(",", m.getParameterTypes());
+        return methods.putIfAbsent(sig, m) == null;
     }
 
     public boolean existsMethod(String className, String methodName) {
@@ -83,7 +83,7 @@ public class ZetarianoSymbolTable {
         while (current != null && visited.add(current)) {
             Map<String, MethodSymbol> methods = classMethods.get(current);
             if (methods != null) {
-                if (methods.keySet().stream().anyMatch(k -> k.startsWith(methodName + "/"))) {
+                if (methods.values().stream().anyMatch(m -> m.getName().equals(methodName))) {
                     return true;
                 }
             }
@@ -102,8 +102,11 @@ public class ZetarianoSymbolTable {
         while (current != null && visited.add(current)) {
             Map<String, MethodSymbol> methods = classMethods.get(current);
             if (methods != null) {
-                MethodSymbol m = methods.get(methodName + "/" + arity);
-                if (m != null) return m;
+                for (MethodSymbol m : methods.values()) {
+                    if (m.getName().equals(methodName) && m.getParameterTypes().size() == arity) {
+                        return m;
+                    }
+                }
             }
             if (typeTable != null) {
                 current = typeTable.getInheritanceMap().get(current);
@@ -138,7 +141,7 @@ public class ZetarianoSymbolTable {
     public boolean hasAnyConstructor(String className) {
         Map<String, MethodSymbol> methods = classMethods.get(className);
         if (methods == null) return false;
-        return methods.keySet().stream().anyMatch(k -> k.startsWith(className + "/"));
+        return methods.values().stream().anyMatch(m -> m.getName().equals(className));
     }
 
     public List<Symbol> getAllSymbols() {

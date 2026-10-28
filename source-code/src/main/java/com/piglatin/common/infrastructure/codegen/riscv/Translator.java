@@ -216,7 +216,7 @@ public final class Translator implements InstructionVisitor<Void> {
     @Override public Void visitLoadRetInt(LoadRetInt i) { context.si(i.getResult(), "a0"); return null; }
     @Override public Void visitLoadRetDouble(LoadRetDouble i) { context.sd(i.getResult(), "fa0"); return null; }
 
-    // Runtime (syscalls de RARS)
+    // Runtime
     @Override public Void visitPrintInt(PrintInt i) { context.loadInt("a0", i.getValue()); context.syscall(1); return null; }
     @Override public Void visitPrintDouble(PrintDouble i) { context.loadDouble("fa0", i.getValue()); context.syscall(3); return null; }
     @Override public Void visitPrintString(PrintString i) { context.loadInt("a0", i.getValue()); context.syscall(4); return null; }
@@ -230,10 +230,9 @@ public final class Translator implements InstructionVisitor<Void> {
     @Override public Void visitReadInt(ReadInt i) { context.syscall(5); context.si(i.getResult(), "a0"); return null; }
     @Override public Void visitReadDouble(ReadDouble i) { context.syscall(7); context.sd(i.getResult(), "fa0"); return null; }
 
+    /** Bump allocator sobre el bloque estático (s11/s10) */
     @Override public Void visitAlloc(Alloc i) {
-        context.loadInt("a0", i.getSize());
-        context.syscall(9);
-        context.si(i.getResult(), "a0");
+        context.bumpAllocate(i.getResult(), i.getSize());
         return null;
     }
 }

@@ -25,6 +25,28 @@ import java.util.*;
  *  - Scratch enteros: x5, x6, x7 (x7 solo como registro de dirección). Scratch double: f0, f1.
  *  - El prólogo emitido por C3DEmitter.emitPrologue se reconoce y se reemplaza por uno
  *    con el frame ampliado con la zona de spills.
+ *
+ * Modelo de memoria dinámica:
+ *  - El heap es un bloque estático de N bytes reservado en .data (__heap_base: .space N).
+ *    N lo calcula HeapEstimator en compilación y se emite como .space; __heap_end es la etiqueta
+ *    que queda justo después del bloque (__heap_base + N).
+ *  - s11 = heap pointer (próximo byte libre), s10 = heap end. Los inicializa __init_heap,
+ *    que se llama al entrar a main.
+ *  - Bump allocator puro: cada Alloc (RiscVTranslationContext.bumpAllocate) y cada rutina del
+ *    runtime que reserva (__concat, __int_to_str, __double_to_str) avanza s11 alineado a 8.
+ *    el heap crece linealmente.
+ *
+ * Estrategia de estimación de N (HeapEstimator):
+ *  - Suma estática de los Alloc (con propagación de constantes; 1024 bytes si el tamaño es dinámico)
+ *    y de las llamadas al runtime que reservan.
+ *  - Lo que se reserva dentro de bucles (salto hacia atrás) se multiplica por MAX_LOOP_ITERATIONS.
+ *  - Más un margen de seguridad fijo, redondeado a página y con un mínimo de 64 KB.
+ *  - Si N más el resto de .data no cabe en el segmento de datos de RARS (~192 KB), N se recorta al
+ *    máximo disponible y se avisa por stderr; el bounds check de ejecución cubre el resto.
+ *
+ * Bounds check: antes de avanzar s11 se comprueba que el tamaño pedido cabe en s10 - s11
+ * (comparación sin signo, así que tamaños negativos o enormes también fallan). Si no cabe, se salta
+ * a __oom_error (runtime.asm), que imprime "Out of memory" y termina con código de salida 10.
  */
 public class C3DToRiscVConverter {
 
@@ -44,6 +66,9 @@ public class C3DToRiscVConverter {
     }
 
     public String convert() {
+        //* Tamaño ideal del heap estático (se ajusta al segmento .data más abajo)
+        final int estimatedHeap = HeapEstimator.estimate(instructions);
+
         //* Contexto nuevo por conversión: pool de doubles vacío, sin estado de conversiones anteriores
         RiscVTranslationContext context = new RiscVTranslationContext();
 
@@ -83,10 +108,19 @@ public class C3DToRiscVConverter {
             text.append(translateFunction(context, start, end));
         }
 
-        //  ensamblado final
+        //* el heap comparte el segmento .data con strings, vtables y doubles: se recorta si no cabe
+        final int heapBytes = HeapEstimator.fitToDataSegment(estimatedHeap, otherDataBytes(context));
+
         StringBuilder sb = new StringBuilder();
         sb.append("# Generado por Clare :p\n");
         sb.append("        .data\n");
+        sb.append("# Heap: ").append(heapBytes).append(" bytes reservados estáticamente (bump allocator s11/s10, sin sbrk)\n");
+        sb.append("        .globl __heap_base\n");
+        sb.append("        .align 3\n");
+        sb.append("__heap_base:\n");
+        sb.append("        .space ").append(heapBytes).append('\n');
+        sb.append("__heap_end:\n");
+        sb.append("__oom_msg: .asciz \"Out of memory\\n\"\n");
         sb.append("# Strings\n");
         for (Map.Entry<String, String> e : stringLiterals.entrySet()) {
             sb.append(e.getKey()).append(": ").append(stringDirective(e.getValue())).append('\n');
@@ -135,6 +169,19 @@ public class C3DToRiscVConverter {
         return sb.toString();
     }
 
+    /** Cota superior de los bytes de .data que no son heap (strings, vtables, doubles, mensaje OOM). */
+    private long otherDataBytes(RiscVTranslationContext context) {
+        long bytes = 64; // __oom_msg y márgenes de alineación
+        for (String text : stringLiterals.values()) {
+            bytes += text.getBytes(StandardCharsets.UTF_8).length + 1 + 8; // bytes + \0 + holgura de alineación
+        }
+        for (List<String> methods : vtables.values()) {
+            bytes += Math.max(1, methods.size()) * 4L + 4;
+        }
+        bytes += context.doubleConstants().size() * 8L + 8;
+        return bytes;
+    }
+
     private String translateFunction(RiscVTranslationContext context, int start, int end) {
         Instruction first = instructions.get(start);
         boolean inMain = first instanceof Label l && MAIN.equals(l.getName());
@@ -151,7 +198,7 @@ public class C3DToRiscVConverter {
 
         int expected = context.allocateSpillArea();
 
-        // Salida con el frame y los mismos slots
+        //* Salida con el frame y los mismos slots
         translateRange(context, start, end, prologue);
         if (context.slotCount() != expected) {
             throw new IllegalStateException("Inconsistencia interna al asignar spills");
@@ -234,11 +281,11 @@ public class C3DToRiscVConverter {
                 if (j + 1 >= end) return;
                 Instruction next = instructions.get(j + 1);
                 if (next instanceof ReturnInt r && RiscVTranslationContext.isTemp(r.getValue())) {
-                    context.line("# (valor de retorno cargado antes del epílogo)");
+                    context.line("# Valor de retorno cargado antes del epílogo");
                     context.loadInt("a0", r.getValue());
                     context.markReturnPreloaded();
                 } else if (next instanceof ReturnDouble r && RiscVTranslationContext.isTemp(r.getValue())) {
-                    context.line("# (valor de retorno cargado antes del epílogo)");
+                    context.line("# Valor de retorno cargado antes del epílogo");
                     context.loadDouble("fa0", r.getValue());
                     context.markReturnPreloaded();
                 }

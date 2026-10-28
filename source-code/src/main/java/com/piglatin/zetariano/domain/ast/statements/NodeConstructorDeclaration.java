@@ -1,6 +1,7 @@
 package com.piglatin.zetariano.domain.ast.statements;
 
 import com.piglatin.zetariano.domain.ast.enums.AccessModifier;
+import com.piglatin.zetariano.domain.ast.expressions.NodeExpression;
 import com.piglatin.zetariano.domain.ast.visitor.Visitor;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,6 +16,9 @@ public class NodeConstructorDeclaration extends NodeStatement {
     private String name;
     private List<NodeParameter> parameters;
     private NodeBlock body;
+    private boolean isThisCall;
+    private boolean isSuperCall;
+    private List<NodeExpression> constructorArgs;
 
     public NodeConstructorDeclaration(AccessModifier modifier, String name, List<NodeParameter> parameters, NodeBlock body, int line, int column) {
         super(line, column);
@@ -22,6 +26,7 @@ public class NodeConstructorDeclaration extends NodeStatement {
         this.name = name;
         this.parameters = parameters != null ? parameters : new ArrayList<>();
         this.body = body;
+        this.constructorArgs = new ArrayList<>();
     }
 
     @Override

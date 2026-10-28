@@ -68,6 +68,11 @@ public class ZetarianoConstantFolder implements Visitor<Object> {
         return null;
     }
 
+    @Override
+    public Object visitSuper(NodeSuper n) {
+        return null;
+    }
+
     // ============================================================
     // EXPRESSIONS
     // ============================================================

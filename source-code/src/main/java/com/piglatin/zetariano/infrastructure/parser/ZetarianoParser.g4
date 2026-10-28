@@ -21,7 +21,12 @@ fieldDeclaration
     ;
 
 constructorDeclaration
-    : accessModifier? IDENTIFIER LPAREN parameterList? RPAREN block
+    : accessModifier? IDENTIFIER LPAREN parameterList? RPAREN LBRACE (explicitConstructorInvocation SEMI)? statement* RBRACE
+    ;
+
+explicitConstructorInvocation
+    : THIS LPAREN expressionList? RPAREN                                #ThisConstructorCall
+    | SUPER LPAREN expressionList? RPAREN                               #SuperConstructorCall
     ;
 
 methodDeclaration
@@ -48,6 +53,7 @@ type
 
 primitiveType
     : INT
+    | FLOAT
     | CHAR
     | BOOLEAN
     | STRING
@@ -91,7 +97,7 @@ assignmentOperator
     ;
 
 target
-    : (THIS | IDENTIFIER) (LBRACK expression RBRACK)* (DOT IDENTIFIER (LBRACK expression RBRACK)*)*
+    : (THIS | SUPER | IDENTIFIER) (LBRACK expression RBRACK)* (DOT IDENTIFIER (LBRACK expression RBRACK)*)*
     ;
 
 expressionStatement
@@ -206,6 +212,7 @@ primaryCore
     | IDENTIFIER LPAREN expressionList? RPAREN          #DirectMethodCall
     | IDENTIFIER                                        #VariableOrField
     | THIS                                              #ThisPrimary
+    | SUPER                                             #SuperPrimary
     ;
 
 primarySuffix

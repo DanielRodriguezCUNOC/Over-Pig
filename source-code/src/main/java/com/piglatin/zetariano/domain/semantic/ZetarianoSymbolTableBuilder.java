@@ -469,6 +469,17 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
         return null;
     }
 
+    @Override
+    public Void visitSuper(NodeSuper n) {
+        if (n == null) return null;
+        if (currentClassName == null) {
+            errorReporter.reportError(
+                    "Keyword 'super' can only be used inside a class context.",
+                    n.getLine(), n.getColumn());
+        }
+        return null;
+    }
+
 
     private void registerField(NodeFieldDeclaration f) {
         if (!typeTable.exists(f.getType()) || typeTable.isVoid(f.getType())) {

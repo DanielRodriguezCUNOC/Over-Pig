@@ -93,9 +93,28 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
         AccessModifier modifier = parseAccessModifier(ctx.accessModifier());
         String name = ctx.IDENTIFIER().getText();
         List<NodeParameter> parameters = buildParameters(ctx.parameterList());
-        NodeBlock body = asBlock(visit(ctx.block()));
 
-        return new NodeConstructorDeclaration(modifier, name, parameters, body, getLine(ctx), getColumn(ctx));
+        List<ASTNode> instructions = new ArrayList<>();
+        if (ctx.statement() != null) {
+            for (ZetarianoParser.StatementContext stCtx : ctx.statement()) {
+                ASTNode node = visit(stCtx);
+                if (node != null) instructions.add(node);
+            }
+        }
+        NodeBlock body = new NodeBlock(instructions, getLine(ctx), getColumn(ctx));
+
+        NodeConstructorDeclaration ctor = new NodeConstructorDeclaration(modifier, name, parameters, body, getLine(ctx), getColumn(ctx));
+        if (ctx.explicitConstructorInvocation() != null) {
+            var inv = ctx.explicitConstructorInvocation();
+            if (inv instanceof ZetarianoParser.ThisConstructorCallContext tCtx) {
+                ctor.setThisCall(true);
+                ctor.setConstructorArgs(parseExpressionList(tCtx.expressionList()));
+            } else if (inv instanceof ZetarianoParser.SuperConstructorCallContext sCtx) {
+                ctor.setSuperCall(true);
+                ctor.setConstructorArgs(parseExpressionList(sCtx.expressionList()));
+            }
+        }
+        return ctor;
     }
 
 
@@ -105,13 +124,20 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
     }
 
     @Override
+    public ASTNode visitSuperPrimary(ZetarianoParser.SuperPrimaryContext ctx) {
+        return new NodeSuper(getLine(ctx), getColumn(ctx));
+    }
+
+    @Override
     public ASTNode visitTarget (ZetarianoParser.TargetContext ctx) {
         NodeLvalue current;
         int idIdx = 0;
 
-        //* Handle the root of the target if are 'IDENTIFIER' or 'this'
+        //* Handle the root of the target if are 'IDENTIFIER' or 'this' or 'super'
         if (ctx.THIS() != null) {
             current = new NodeThis(getLine(ctx), getColumn(ctx));
+        } else if (ctx.SUPER() != null) {
+            current = new NodeSuper(getLine(ctx), getColumn(ctx));
         } else {
             current = new NodeIdentifier(ctx.IDENTIFIER(idIdx++).getText(), getLine(ctx), getColumn(ctx));
         }
@@ -352,6 +378,10 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
         int col = getColumn(ctx);
         String methodName = ctx.IDENTIFIER().getText();
         List<NodeExpression> args = parseExpressionList(ctx.expressionList());
+
+        if ("read".equals(methodName) && args.isEmpty()) {
+            return new NodeRead(line, col);
+        }
 
         return new NodeMethodCall(null, methodName, args, line, col);
     }

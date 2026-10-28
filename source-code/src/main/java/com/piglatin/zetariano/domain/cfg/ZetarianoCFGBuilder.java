@@ -432,6 +432,11 @@ public class ZetarianoCFGBuilder implements Visitor<Void> {
         return null;
     }
 
+    @Override
+    public Void visitSuper(NodeSuper n) {
+        return null;
+    }
+
     private void processClass(NodeClassDeclaration cls) {
         if (cls == null || cls.getMembers() == null) return;
 
