@@ -19,6 +19,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -480,9 +481,9 @@ public class CodeEditorView extends JFrame {
             JOptionPane.showMessageDialog(this,
                     "Code generated successfully.\n\n"
                             + "3-address code: " + describePath(result.c3dFilePath()) + "\n"
-                            + "RISC-V:         " + describePath(result.asmFilePath()) + "\n\n"
-                            + "Running it on RARS is not connected yet.",
+                            + "RISC-V:         " + describePath(result.asmFilePath()) + "\n\n",
                     "Success", JOptionPane.INFORMATION_MESSAGE);
+            runRarsInTerminal(result.asmFilePath());
             return;
         }
 
@@ -854,5 +855,106 @@ public class CodeEditorView extends JFrame {
             }
         }
         return null;
+    }
+
+    private void runRarsInTerminal(String asmFilePath) {
+        if (asmFilePath == null || asmFilePath.isBlank()) {
+            JOptionPane.showMessageDialog(this, "No se encontró el archivo .asm para ejecutar.", "Advertencia", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            File tempRarsJar = extractResourceToFile("/lib/rars1_6.jar", "rars1_6.jar");
+            if (tempRarsJar == null || !tempRarsJar.exists()) {
+                return;
+            }
+
+            File asmFile = new File(asmFilePath);
+            File asmDir = asmFile.getParentFile();
+
+            File runtimeDest = new File(asmDir, "runtime.asm");
+            if (!runtimeDest.exists()) {
+                extractResourceToSpecificFile("/lib/runtime.asm", runtimeDest);
+            }
+
+            String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+
+            ProcessBuilder pb = new ProcessBuilder(
+                    javaBin,
+                    "-jar",
+                    tempRarsJar.getAbsolutePath(),
+                    "nc",
+                    asmFile.getAbsolutePath()
+            );
+
+            pb.directory(asmDir);
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+
+            TerminalDialog terminalDialog = new TerminalDialog(this, process);
+            terminalDialog.setVisible(true);
+
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error al iniciar RARS en la terminal:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace();
+        }
+    }
+
+    private File extractResourceToFile(String resourcePath, String targetFileName) {
+        try {
+            InputStream in = getResourceStream(resourcePath);
+            if (in == null) {
+                JOptionPane.showMessageDialog(this,
+                        "No se encontró el recurso en el classpath: " + resourcePath +
+                                "\n¿Ya hiciste un Rebuild/Clean & Build en tu IDE?",
+                        "Error de Recurso", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+
+            File tempFile = File.createTempFile("rars_ext_", "_" + targetFileName);
+            tempFile.deleteOnExit();
+
+            Files.copy(in, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            in.close();
+            return tempFile;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private boolean extractResourceToSpecificFile(String resourcePath, File targetFile) {
+        try {
+            InputStream in = getResourceStream(resourcePath);
+            if (in == null) {
+                JOptionPane.showMessageDialog(this,
+                        "No se encontró el recurso en el classpath: " + resourcePath +
+                                "\n¿Ya hiciste un Rebuild/Clean & Build en tu IDE?",
+                        "Error de Recurso", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+
+            Files.copy(in, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            in.close();
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * Método robusto para encontrar el recurso sin importar variaciones del ClassLoader.
+     */
+    private InputStream getResourceStream(String path) {
+        String cleanPath = path.startsWith("/") ? path.substring(1) : path;
+
+        InputStream in = getClass().getResourceAsStream(path);
+        if (in == null) in = getClass().getResourceAsStream("/" + cleanPath);
+        if (in == null) in = Thread.currentThread().getContextClassLoader().getResourceAsStream(cleanPath);
+        if (in == null) in = Thread.currentThread().getContextClassLoader().getResourceAsStream("/" + cleanPath);
+
+        return in;
     }
 }
