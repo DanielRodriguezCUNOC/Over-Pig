@@ -371,7 +371,7 @@ public class YASTBuilder extends YParserBaseVisitor<ASTNode> {
     public ASTNode visitForStatement(YParser.ForStatementContext ctx) {
         int line = ctx.getStart().getLine();
         int col = ctx.getStart().getCharPositionInLine();
-        
+
         ASTNode init = null;
         ASTNode increment = null;
         int semicolons = 0;

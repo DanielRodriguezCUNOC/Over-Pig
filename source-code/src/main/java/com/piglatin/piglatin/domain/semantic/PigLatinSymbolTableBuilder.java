@@ -34,6 +34,10 @@ import lombok.Setter;
  * - Register function signatures before analyzing their bodies.
  *
  * !EYE!!: A local variable may shadow one from a parent scope.
+ *
+ * Imported classes (.z) and structs (.y) are already registered in the type table by the
+ * analyzer, so a type that is neither primitive nor imported is always an error. Calls,
+ * constructors and members are resolved against ImportedSymbols in pass 2.
  */
 @Getter
 @Setter
@@ -42,13 +46,19 @@ public class PigLatinSymbolTableBuilder implements Visitor<Void> {
     private final PigLatinSymbolTable symbolTable;
     private final PigLatinTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
+    private final ImportedSymbols imported;
     private int loopDepth = 0;
-    private boolean hasImports = false;
 
     public PigLatinSymbolTableBuilder(PigLatinTypeTable typeTable, SemanticErrorReporter errorReporter) {
+        this(typeTable, errorReporter, ImportedSymbols.NONE);
+    }
+
+    public PigLatinSymbolTableBuilder(PigLatinTypeTable typeTable, SemanticErrorReporter errorReporter,
+                                      ImportedSymbols imported) {
         this.symbolTable = new PigLatinSymbolTable();
         this.typeTable = typeTable;
         this.errorReporter = errorReporter;
+        this.imported = imported != null ? imported : ImportedSymbols.NONE;
     }
 
     @Override
@@ -78,15 +88,7 @@ public class PigLatinSymbolTableBuilder implements Visitor<Void> {
         if (n.getInitializer() != null) n.getInitializer().accept(this);
 
         if (n.getType() != null && !typeTable.exists(n.getType())) {
-
-            if (hasImports){
-                typeTable.registerType(n.getType());
-            }else {
-                errorReporter.reportError(
-                        "Type " + n.getType() + " is not defined.", n.getLine(), n.getColumn()
-                );
-            }
-
+            errorReporter.reportError(undefinedTypeMessage(n.getType()), n.getLine(), n.getColumn());
         }
 
         //* Declare in the current scope
@@ -106,7 +108,7 @@ public class PigLatinSymbolTableBuilder implements Visitor<Void> {
 
         //* Validate array element type
         if (!typeTable.exists(n.getElementType()))
-            errorReporter.reportError("Type " + n.getElementType() + " is not defined. " + n.getLine(),  n.getLine(), n.getColumn());
+            errorReporter.reportError(undefinedTypeMessage(n.getElementType()), n.getLine(), n.getColumn());
 
         //* Visit initial values if present
         if (n.getInitialValues() != null){
@@ -343,14 +345,12 @@ public class PigLatinSymbolTableBuilder implements Visitor<Void> {
 
     @Override
     public Void visitImport(NodeImport n) {
-        this.hasImports = true;
-        if (n != null && n.getPath() != null && !n.getPath().isEmpty()) {
-            String lastSegment = n.getPath().get(n.getPath().size() - 1);
-            if (typeTable != null) {
-                typeTable.registerType(lastSegment);
-            }
-        }
         return null;
+    }
+
+    private String undefinedTypeMessage(String type) {
+        return "Type '" + type + "' is not defined: it is neither a primitive type nor a class or " +
+                "struct of an imported .z / .y file";
     }
 
 
@@ -386,18 +386,7 @@ public class PigLatinSymbolTableBuilder implements Visitor<Void> {
                 }
             }
         } else {
-            if (!symbolTable.exists(n.getFunctionName())) {
-                if (hasImports) {
-                    symbolTable.declare(
-                            n.getFunctionName(),
-                            new FunctionSymbol(n.getFunctionName(), "FUNCTION", n.getLine(), n.getColumn(), "VOID")
-                    );
-                } else {
-                    errorReporter.reportError("Function '" + n.getFunctionName() +
-                            "' is not declared.", n.getLine(), n.getColumn());
-                }
-            }
-
+            //* Free functions live in the imported .y files; pass 2 resolves them by name and arity
             if (n.getArguments() != null) {
                 for (ASTNode argument : n.getArguments()) {
                     argument.accept(this);
