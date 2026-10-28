@@ -5,11 +5,14 @@ import com.piglatin.common.application.dto.CompilationMode;
 import com.piglatin.ui.domain.wrapper.FileNode;
 import com.piglatin.ui.infrastructure.facade.LanguajeCompilerFacade;
 import com.piglatin.ui.infrastructure.facade.dto.*;
+import com.piglatin.ui.infrastructure.syntax.SyntaxHighlighter;
 import com.piglatin.ui.infrastructure.views.components.TextLineNumber;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.text.Document;
+import javax.swing.text.Element;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import java.awt.*;
@@ -209,7 +212,7 @@ public class CodeEditorView extends JFrame {
     }
 
     private void updateLineAndColumn() {
-        JTextArea activeEditor = getCurrentEditor();
+        JTextPane activeEditor = getCurrentEditor();
         File activeFile = getCurrentFile();
 
         if (activeEditor == null) {
@@ -222,11 +225,16 @@ public class CodeEditorView extends JFrame {
         int colNum = 1;
 
         try {
-            int offset = activeEditor.getLineOfOffset(caretPos);
-            rowNum = offset + 1;
-            colNum = caretPos - activeEditor.getLineStartOffset(offset) + 1;
-        } catch (Exception ex) {
+            Document doc = activeEditor.getDocument();
+            Element root = doc.getDefaultRootElement();
+            int lineIndex = root.getElementIndex(caretPos);
 
+            rowNum = lineIndex + 1;
+            Element lineElement = root.getElement(lineIndex);
+            int lineStartOffset = lineElement.getStartOffset();
+
+            colNum = caretPos - lineStartOffset + 1;
+        } catch (Exception ex) {
         }
 
         String name = (activeFile != null) ? activeFile.getName() : "Untitled";
@@ -304,7 +312,7 @@ public class CodeEditorView extends JFrame {
 
         for (int i = 0; i < editorTabbedPane.getTabCount(); i++) {
             JScrollPane scroll = (JScrollPane) editorTabbedPane.getComponentAt(i);
-            JTextArea area = (JTextArea) scroll.getViewport().getView();
+            JTextPane area = (JTextPane) scroll.getViewport().getView();
             File openFile = (File) area.getClientProperty("file");
 
             if (openFile != null && openFile.getAbsolutePath().equals(file.getAbsolutePath())) {
@@ -316,13 +324,40 @@ public class CodeEditorView extends JFrame {
         try {
             String content = Files.readString(file.toPath());
 
-            JTextArea newEditor = new JTextArea(content);
+            JTextPane newEditor = new JTextPane();
+            newEditor.setText(content);
             newEditor.setFont(new Font("Consolas", Font.PLAIN, 14));
             newEditor.setBackground(bgDark);
             newEditor.setForeground(fgText);
             newEditor.setCaretColor(orangeAccent);
-            newEditor.setTabSize(4);
             newEditor.putClientProperty("file", file);
+
+            //* Get colored extensuib
+            String fileName = file.getName();
+            String extension = fileName.substring(fileName.lastIndexOf('.') + 1);
+
+            //* Apply syntax highlighting based on file extension
+            SyntaxHighlighter.applyHighlighting(newEditor, extension);
+
+            newEditor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                private void triggerHighlight() {
+                    SwingUtilities.invokeLater(() -> SyntaxHighlighter.applyHighlighting(newEditor, extension));
+                }
+
+                @Override
+                public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                    triggerHighlight();
+                }
+
+                @Override
+                public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                    triggerHighlight();
+                }
+
+                @Override
+                public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                }
+            });
 
             newEditor.addCaretListener(e -> updateLineAndColumn());
 
@@ -386,13 +421,12 @@ public class CodeEditorView extends JFrame {
         if (btnCompile != null) btnCompile.addActionListener(this::onCompileClicked);
     }
 
-    /** Compile: solo análisis (léxico, sintáctico, semántico). No genera C3D ni RISC-V. */
     private void onCompileClicked(ActionEvent e) {
         executePipeline(CompilationMode.VALIDATE_ONLY);
     }
 
     private void executePipeline(CompilationMode mode) {
-        JTextArea activeEditor = getCurrentEditor();
+        JTextPane activeEditor = getCurrentEditor();
         File activeFile = getCurrentFile();
 
         if (activeEditor == null || activeFile == null) {
@@ -646,8 +680,7 @@ public class CodeEditorView extends JFrame {
 
                 for (int i = 0; i < editorTabbedPane.getTabCount(); i++) {
                     JScrollPane scrollPane = (JScrollPane) editorTabbedPane.getComponentAt(i);
-                    JTextArea area = (JTextArea) scrollPane.getViewport().getView();
-                    File openFile = (File) area.getClientProperty("file");
+                    JTextPane area = (JTextPane) scrollPane.getViewport().getView();                    File openFile = (File) area.getClientProperty("file");
                     if (openFile != null && openFile.getAbsolutePath().equals(targetFile.getAbsolutePath())) {
                         editorTabbedPane.removeTabAt(i);
                         break;
@@ -672,7 +705,7 @@ public class CodeEditorView extends JFrame {
     }
 
     private void saveCurrentFileAction() {
-        JTextArea activeEditor = getCurrentEditor();
+        JTextPane activeEditor = getCurrentEditor();
         File activeFile = getCurrentFile();
 
         if (activeEditor == null || activeFile == null) {
@@ -690,7 +723,7 @@ public class CodeEditorView extends JFrame {
     }
 
     private void saveFileAsAction() {
-        JTextArea activeEditor = getCurrentEditor();
+        JTextPane activeEditor = getCurrentEditor();
         if (activeEditor == null) {
             JOptionPane.showMessageDialog(this, "There is no open file to save.", "Warning", JOptionPane.WARNING_MESSAGE);
             return;
@@ -766,15 +799,15 @@ public class CodeEditorView extends JFrame {
         });
     }
 
-    private JTextArea getCurrentEditor() {
+    private JTextPane getCurrentEditor() {
         int index = editorTabbedPane.getSelectedIndex();
         if (index == -1) return null;
         JScrollPane scroll = (JScrollPane) editorTabbedPane.getComponentAt(index);
-        return (JTextArea) scroll.getViewport().getView();
+        return (JTextPane) scroll.getViewport().getView();
     }
 
     private File getCurrentFile() {
-        JTextArea area = getCurrentEditor();
+        JTextPane area = getCurrentEditor();
         if (area == null) return null;
         return (File) area.getClientProperty("file");
     }

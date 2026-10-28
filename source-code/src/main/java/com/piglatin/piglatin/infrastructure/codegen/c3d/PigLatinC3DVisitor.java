@@ -332,15 +332,15 @@ public class PigLatinC3DVisitor implements Visitor<String> {
             if (value == null) continue;
             printValue(value, desc);
         }
+        ctx.emit(new PrintNewline());
         return null;
     }
 
     private void printValue(String value, TypeDesc desc) {
         if (desc.type() == Type.CHAR) {
             ctx.emit(new PrintString(charToString(value)));
-            ctx.emit(new PrintNewline());
         } else {
-            emitter.emitPrintln(value, desc.type());
+            emitter.emitPrint(value, desc.type());
         }
     }
 
