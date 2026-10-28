@@ -24,10 +24,6 @@ public class YConstantFolder implements Visitor<Object> {
         return node.accept(this);
     }
 
-    // ============================================================
-    // LITERALS
-    // ============================================================
-
     @Override
     public Object visitIntegerLiteral(NodeIntegerLiteral n) {
         return n.getValue();
@@ -53,10 +49,6 @@ public class YConstantFolder implements Visitor<Object> {
         return n.isValue();
     }
 
-    // ============================================================
-    // EXPRESSIONS
-    // ============================================================
-
     @Override
     public Object visitUnaryOperation(NodeUnaryOperation n) {
         Object val = evaluate(n.getOperand());
@@ -71,7 +63,7 @@ public class YConstantFolder implements Visitor<Object> {
                     yield null;
                 }
                 case "!" -> val instanceof Boolean b ? !b : null;
-                default -> null; // Y has no other unary operators.
+                default -> null;
             };
         } catch (Exception e) {
             return null;
@@ -105,8 +97,9 @@ public class YConstantFolder implements Visitor<Object> {
         try {
             return switch (op) {
                 case "+" -> {
-                    if (left instanceof String ls && right instanceof String rs) {
-                        yield ls + rs;
+                    if ((left instanceof String || right instanceof String)
+                            && isConcatenable(left) && isConcatenable(right)) {
+                        yield stringify(left) + stringify(right);
                     }
                     if (isNumeric(left) && isNumeric(right)) {
                         yield isDoubleResult(left, right) ? toDouble(left) + toDouble(right) : toInt(left) + toInt(right);
@@ -130,7 +123,9 @@ public class YConstantFolder implements Visitor<Object> {
                     yield isDoubleResult(left, right) ? toDouble(left) / d2 : toInt(left) / toInt(right);
                 }
                 case "<" -> isNumeric(left) && isNumeric(right) ? toDouble(left) < toDouble(right) : null;
+                case "<=" -> isNumeric(left) && isNumeric(right) ? toDouble(left) <= toDouble(right) : null;
                 case ">" -> isNumeric(left) && isNumeric(right) ? toDouble(left) > toDouble(right) : null;
+                case ">=" -> isNumeric(left) && isNumeric(right) ? toDouble(left) >= toDouble(right) : null;
                 case "==" -> Objects.equals(left, right);
                 case "!=" -> !Objects.equals(left, right);
                 default -> null;
@@ -140,10 +135,6 @@ public class YConstantFolder implements Visitor<Object> {
         }
     }
 
-    // ============================================================
-    // NON-EVALUABLE EXPRESSIONS (return null)
-    // ============================================================
-
     @Override public Object visitIdentifier(NodeIdentifier n)       { return null; }
     @Override public Object visitArrayLiteral(NodeArrayLiteral n)   { return null; }
     @Override public Object visitLvalue(NodeLvalue n)               { return null; }
@@ -152,10 +143,6 @@ public class YConstantFolder implements Visitor<Object> {
     @Override public Object visitFunctionCall(NodeFunctionCall n)   { return null; }
     @Override public Object visitAssignment(NodeAssignment n)       { return null; }
     @Override public Object visitRead(NodeRead n)                   { return null; }
-
-    // ============================================================
-    // STATEMENTS & DECLARATIONS (return null)
-    // ============================================================
 
     @Override public Object visitProgram(NodeProgram n) { return null; }
     @Override public Object visitStructureDefinition(NodeStructureDefinition n) { return null; }
@@ -176,9 +163,16 @@ public class YConstantFolder implements Visitor<Object> {
     @Override public Object visitContinue(NodeContinue n) { return null; }
     @Override public Object visitReturn(NodeReturn n) { return null; }
 
-    // ============================================================
-    // HELPERS
-    // ============================================================
+    private boolean isConcatenable(Object o) {
+        return o instanceof String || o instanceof Integer || o instanceof Double
+                || o instanceof Boolean || o instanceof Character;
+    }
+
+    /** Text a constant contributes to a concatenation (bool -> 1/0, same as the code generator). */
+    private String stringify(Object o) {
+        if (o instanceof Boolean b) return b ? "1" : "0";
+        return String.valueOf(o);
+    }
 
     private boolean isNumeric(Object o) {
         return o instanceof Integer || o instanceof Double;

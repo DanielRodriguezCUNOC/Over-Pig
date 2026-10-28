@@ -124,6 +124,8 @@ MULT: '*';
 DIV: '/';
 EQUAL: '==';
 NOTEQUAL: '!=';
+LESS_EQUAL: '<=';
+GREATER_EQUAL: '>=';
 LESS: '<';
 GREATER: '>';
 AND: '&&';

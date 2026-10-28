@@ -113,7 +113,7 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         if (n.getParameters() != null) {
             for (NodeParameter p : n.getParameters()) {
                 if (p == null) continue;
-                // p.getType() ya incluye los corchetes (p.ej. "Cuenta[]"): no volver a agregarlos.
+
                 String pBase = p.getType().replace("[]", "");
                 int pDims = (p.getType().length() - pBase.length()) / 2;
                 String pType = p.getType();
@@ -146,7 +146,7 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         if (n.getParameters() != null) {
             for (NodeParameter p : n.getParameters()) {
                 if (p == null) continue;
-                // p.getType() ya incluye los corchetes (p.ej. "Cuenta[]"): no volver a agregarlos.
+
                 String pBase = p.getType().replace("[]", "");
                 int pDims = (p.getType().length() - pBase.length()) / 2;
                 String pType = p.getType();
@@ -283,7 +283,7 @@ public class ZetarianoTypeChecker implements Visitor<String> {
 
     @Override
     public String visitRead(NodeRead n) {
-        return null;
+        return "String";
     }
 
     @Override
@@ -636,6 +636,15 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         String targetType = n.getTarget() != null ? n.getTarget().accept(this) : null;
         if (targetType == null) return null;
 
+        if (targetType.endsWith("[]")) {
+            if ("length".equals(n.getFieldName())) {
+                return "int";
+            }
+            errorReporter.reportError(
+                    "Cannot access field '" + n.getFieldName() + "' on array type '" + targetType + "'.", n);
+            return null;
+        }
+
         if (!typeTable.isUserDefined(targetType)) {
             errorReporter.reportError(
                     "Cannot access field '" + n.getFieldName() + "' on non-object type '" + targetType + "'.", n);
@@ -847,19 +856,32 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         return currentClassName;
     }
 
+    @Override
+    public String visitSuper(NodeSuper n) {
+        if (n == null) return null;
+        if (currentClassName == null) {
+            errorReporter.reportError("'super' cannot be used outside of a class context.", n);
+            return null;
+        }
+        return typeTable.getInheritanceMap().get(currentClassName);
+    }
+
     private boolean isNumeric(String type) {
-        return "int".equals(type) || "double".equals(type) || "char".equals(type);
+        return "int".equals(type) || "double".equals(type) || "float".equals(type) || "char".equals(type);
     }
 
     private boolean isAssignable(String targetType, String sourceType) {
         if (targetType == null || sourceType == null) return true;
         if (targetType.equals(sourceType)) return true;
 
-        if ("double".equals(targetType)) {
-            return "int".equals(sourceType) || "char".equals(sourceType);
+        if ("double".equals(targetType) || "float".equals(targetType)) {
+            return "int".equals(sourceType) || "char".equals(sourceType) || "float".equals(sourceType) || "double".equals(sourceType) || "String".equals(sourceType);
         }
         if ("int".equals(targetType)) {
-            return "char".equals(sourceType);
+            return "char".equals(sourceType) || "String".equals(sourceType);
+        }
+        if ("String".equals(targetType)) {
+            return true;
         }
         if ("null".equals(sourceType)) {
             return isReferenceType(targetType);
@@ -975,7 +997,7 @@ public class ZetarianoTypeChecker implements Visitor<String> {
             case ADD_ASSIGN ->
                     validateAddAssignment(node, leftType, rightType);
 
-            case SUB_ASSIGN, MUL_ASSIGN ->
+            case SUB_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, MOD_ASSIGN ->
                     validateNumericCompoundAssignment(node, leftType, rightType, node.getOperator().toString());
 
             case INCREMENT, DECREMENT ->

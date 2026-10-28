@@ -72,6 +72,16 @@ public interface YParserListener extends ParseTreeListener {
 	 */
 	void exitFunctionDeclaration(YParser.FunctionDeclarationContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link YParser#returnType}.
+	 * @param ctx the parse tree
+	 */
+	void enterReturnType(YParser.ReturnTypeContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link YParser#returnType}.
+	 * @param ctx the parse tree
+	 */
+	void exitReturnType(YParser.ReturnTypeContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link YParser#parameterList}.
 	 * @param ctx the parse tree
 	 */
@@ -550,18 +560,6 @@ public interface YParserListener extends ParseTreeListener {
 	 */
 	void exitPrimaryLiteral(YParser.PrimaryLiteralContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code PrimaryLvalue}
-	 * labeled alternative in {@link YParser#primary}.
-	 * @param ctx the parse tree
-	 */
-	void enterPrimaryLvalue(YParser.PrimaryLvalueContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code PrimaryLvalue}
-	 * labeled alternative in {@link YParser#primary}.
-	 * @param ctx the parse tree
-	 */
-	void exitPrimaryLvalue(YParser.PrimaryLvalueContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code PrimaryFunctionCall}
 	 * labeled alternative in {@link YParser#primary}.
 	 * @param ctx the parse tree
@@ -573,6 +571,18 @@ public interface YParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitPrimaryFunctionCall(YParser.PrimaryFunctionCallContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code PrimaryLvalue}
+	 * labeled alternative in {@link YParser#primary}.
+	 * @param ctx the parse tree
+	 */
+	void enterPrimaryLvalue(YParser.PrimaryLvalueContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code PrimaryLvalue}
+	 * labeled alternative in {@link YParser#primary}.
+	 * @param ctx the parse tree
+	 */
+	void exitPrimaryLvalue(YParser.PrimaryLvalueContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code PrimaryRead}
 	 * labeled alternative in {@link YParser#primary}.

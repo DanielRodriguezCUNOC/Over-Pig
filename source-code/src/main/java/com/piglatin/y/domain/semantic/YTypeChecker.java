@@ -10,7 +10,9 @@ import com.piglatin.y.domain.types.YTypeTable;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Semantic analysis pass 2.
@@ -37,6 +39,7 @@ public class YTypeChecker implements Visitor<String> {
     private final SemanticErrorReporter errorReporter;
     private final YConstantFolder constantFolder;
     private String currentFunctionReturnType;
+    private final Map<String, NodeStructureDefinition> structDefs = new HashMap<>();
 
     public YTypeChecker(YSymbolTable symbolTable, YTypeTable typeTable, SemanticErrorReporter errorReporter) {
         this.symbolTable = symbolTable;
@@ -45,10 +48,6 @@ public class YTypeChecker implements Visitor<String> {
         this.constantFolder = new YConstantFolder(errorReporter);
         this.currentFunctionReturnType = null;
     }
-
-    // ============================================================
-    // PROGRAM & STRUCTS
-    // ============================================================
 
     @Override
     public String visitProgram(NodeProgram n) {
@@ -74,9 +73,6 @@ public class YTypeChecker implements Visitor<String> {
 
     @Override
     public String visitStructureDefinition(NodeStructureDefinition n) {
-        //* Local struct (declared inside a function body): pass 1 already
-        //* validated its name/fields; here we only need its field map so
-        //* that field access later in the same scope can resolve types.
         if (n == null) return null;
         registerStructureFields(n);
         return null;
@@ -84,13 +80,9 @@ public class YTypeChecker implements Visitor<String> {
 
     @Override
     public String visitFieldDeclaration(NodeFieldDeclaration n) {
-        //* Fields are processed in bulk by registerStructureFields().
         return null;
     }
 
-    // ============================================================
-    // FUNCTIONS
-    // ============================================================
 
     @Override
     public String visitFunctionDefinition(NodeFunctionDefinition n) {
@@ -111,13 +103,9 @@ public class YTypeChecker implements Visitor<String> {
 
     @Override
     public String visitParameter(NodeParameter n) {
-        //* Parameter is already declared in declareParameters().
         return null;
     }
 
-    // ============================================================
-    // STATEMENTS
-    // ============================================================
 
     @Override
     public String visitBlock(NodeBlock n) {
@@ -140,7 +128,7 @@ public class YTypeChecker implements Visitor<String> {
         String declaredType = n.getType();
 
         if (n.getInitializer() != null) {
-            String initType = n.getInitializer().accept(this);
+            String initType = valueTypeFor(declaredType, n.getInitializer());
             if (initType != null && !isAssignable(declaredType, initType)) {
                 errorReporter.reportError(
                         "Cannot assign '" + initType + "' to '" + declaredType + "'.",
@@ -172,13 +160,8 @@ public class YTypeChecker implements Visitor<String> {
                             size.getLine(), size.getColumn());
                 }
 
-                //* Array sizes must be constant expressions.
                 Object constantValue = constantFolder.evaluate(size);
-                if (constantValue == null) {
-                    errorReporter.reportError(
-                            "Array size must be a constant expression.",
-                            size.getLine(), size.getColumn());
-                } else if (constantValue instanceof Integer i && i <= 0) {
+                if (constantValue instanceof Integer i && i <= 0) {
                     errorReporter.reportError(
                             "Array size must be a positive integer.",
                             size.getLine(), size.getColumn());
@@ -187,7 +170,7 @@ public class YTypeChecker implements Visitor<String> {
         }
 
         if (n.getInitializer() != null) {
-            String initType = n.getInitializer().accept(this);
+            String initType = valueTypeFor(arrayType, n.getInitializer());
             if (initType != null && !isAssignable(arrayType, initType)) {
                 errorReporter.reportError(
                         "Cannot assign '" + initType + "' to array of type '" + arrayType + "'.",
@@ -216,7 +199,7 @@ public class YTypeChecker implements Visitor<String> {
             return null;
         }
 
-        String rightType = n.getExpression() != null ? n.getExpression().accept(this) : null;
+        String rightType = n.getExpression() != null ? valueTypeFor(leftType, n.getExpression()) : null;
         if (leftType != null && rightType != null && !isAssignable(leftType, rightType)) {
             errorReporter.reportError(
                     "Cannot assign '" + rightType + "' to '" + leftType + "'.",
@@ -227,8 +210,7 @@ public class YTypeChecker implements Visitor<String> {
 
     @Override
     public String visitRead(NodeRead n) {
-        //* leer() always yields a string; the caller may assign/coerce it.
-        return "cadena";
+        return "entero";
     }
 
     @Override
@@ -345,13 +327,11 @@ public class YTypeChecker implements Visitor<String> {
 
     @Override
     public String visitBreak(NodeBreak n) {
-        //* Loop-depth validity already checked in pass 1.
         return null;
     }
 
     @Override
     public String visitContinue(NodeContinue n) {
-        //* Loop-depth validity already checked in pass 1.
         return null;
     }
 
@@ -373,7 +353,7 @@ public class YTypeChecker implements Visitor<String> {
                     "Function must return a value of type '" + currentFunctionReturnType + "'.",
                     n.getLine(), n.getColumn());
         } else {
-            String returnExprType = n.getExpression().accept(this);
+            String returnExprType = valueTypeFor(currentFunctionReturnType, n.getExpression());
             if (returnExprType != null && !isAssignable(currentFunctionReturnType, returnExprType)) {
                 errorReporter.reportError(
                         "Incompatible return type: expected '" + currentFunctionReturnType + "', found '"
@@ -383,10 +363,6 @@ public class YTypeChecker implements Visitor<String> {
         }
         return null;
     }
-
-    // ============================================================
-    // EXPRESSIONS
-    // ============================================================
 
     @Override
     public String visitBinaryOperation(NodeBinaryOperation n) {
@@ -400,7 +376,9 @@ public class YTypeChecker implements Visitor<String> {
         String op = n.getOperator();
         switch (op) {
             case "+" -> {
-                if ("cadena".equals(leftType) && "cadena".equals(rightType)) {
+                //* Concatenation: cadena with cadena/entero/flotante/bool/caracter, either order.
+                if (("cadena".equals(leftType) && isConcatenable(rightType))
+                        || ("cadena".equals(rightType) && isConcatenable(leftType))) {
                     return "cadena";
                 }
                 if (isNumeric(leftType) && isNumeric(rightType)) {
@@ -421,7 +399,7 @@ public class YTypeChecker implements Visitor<String> {
                         n.getLine(), n.getColumn());
                 return null;
             }
-            case "<", ">" -> {
+            case "<", "<=", ">", ">=" -> {
                 if (isNumeric(leftType) && isNumeric(rightType)) {
                     return "bool";
                 }
@@ -511,8 +489,6 @@ public class YTypeChecker implements Visitor<String> {
 
     @Override
     public String visitLvalue(NodeLvalue n) {
-        //* Abstract lvalue node: concrete subtypes (identifier, field access,
-        //* index access) dispatch to their own visit method via accept().
         return null;
     }
 
@@ -647,9 +623,6 @@ public class YTypeChecker implements Visitor<String> {
         return firstType != null ? firstType + "[]" : null;
     }
 
-    // ============================================================
-    // LITERALS
-    // ============================================================
 
     @Override public String visitIntegerLiteral(NodeIntegerLiteral n) { return "entero"; }
     @Override public String visitFloatLiteral(NodeFloatLiteral n)     { return "flotante"; }
@@ -657,9 +630,6 @@ public class YTypeChecker implements Visitor<String> {
     @Override public String visitStringLiteral(NodeStringLiteral n)   { return "cadena"; }
     @Override public String visitBooleanLiteral(NodeBooleanLiteral n) { return "bool"; }
 
-    // ============================================================
-    // PRIVATE HELPERS - STRUCTS
-    // ============================================================
 
     /**
      * Populates the persistent struct-field registry so that field access
@@ -670,6 +640,7 @@ public class YTypeChecker implements Visitor<String> {
      * errors for the rest of the program.
      */
     private void registerStructureFields(NodeStructureDefinition n) {
+        structDefs.put(n.getName(), n);
         if (n.getFields() == null) return;
 
         for (NodeFieldDeclaration field : n.getFields()) {
@@ -687,10 +658,6 @@ public class YTypeChecker implements Visitor<String> {
             }
         }
     }
-
-    // ============================================================
-    // PRIVATE HELPERS - FUNCTIONS
-    // ============================================================
 
     private void declareParameters(List<NodeParameter> params) {
         if (params == null) return;
@@ -712,6 +679,103 @@ public class YTypeChecker implements Visitor<String> {
     // PRIVATE HELPERS - GENERAL
     // ============================================================
 
+    /**
+     * Type of 'value' as seen from a context that expects 'targetType'.
+     *
+     * Most expressions simply return their own type. Two cases depend on the
+     * target, so they are resolved here instead of in the plain visit methods:
+     *
+     *  - Array literal used as an initializer. It is checked element by element
+     *    against the element type ("flotante a[3] = {1, 2, 3}" is fine because
+     *    entero -> flotante), or field by field, in declaration order, against
+     *    a struct ("Punto p = {10, 20, 85.5}"). Mismatches are reported on the
+     *    offending element and the target type is returned so the caller does
+     *    not report a second, whole-literal error.
+     *  - leer(), which can feed entero, flotante, caracter or bool.
+     *
+     * Returns null when the value is unresolved or its error was already reported.
+     */
+    private String valueTypeFor(String targetType, ASTNode value) {
+        if (value == null) return null;
+
+        if (value instanceof NodeRead) {
+            if (targetType == null || "entero".equals(targetType) || "flotante".equals(targetType)
+                    || "caracter".equals(targetType) || "bool".equals(targetType)) {
+                return targetType != null ? targetType : "entero";
+            }
+            errorReporter.reportError(
+                    "'leer()' can only be assigned to 'entero', 'flotante', 'caracter' or 'bool', not to '"
+                            + targetType + "'.",
+                    value.getLine(), value.getColumn());
+            return null;
+        }
+
+        if (value instanceof NodeArrayLiteral literal && targetType != null) {
+            if (targetType.endsWith("[]")) {
+                checkArrayLiteral(targetType, literal);
+                return targetType;
+            }
+            if (typeTable.isUserDefined(targetType)) {
+                checkStructLiteral(targetType, literal);
+                return targetType;
+            }
+        }
+
+        return value.accept(this);
+    }
+
+    private void checkArrayLiteral(String arrayType, NodeArrayLiteral literal) {
+        if (literal.getElements() == null) return;
+        String elementType = arrayType.substring(0, arrayType.length() - 2);
+
+        for (ASTNode element : literal.getElements()) {
+            if (element == null) continue;
+            reportIfNotAssignable(elementType, element);
+        }
+    }
+
+    private void checkStructLiteral(String structName, NodeArrayLiteral literal) {
+        List<ASTNode> elements = literal.getElements() != null ? literal.getElements() : Collections.emptyList();
+        NodeStructureDefinition def = structDefs.get(structName);
+        if (def == null || def.getFields() == null) {
+            //* Unknown layout (already reported elsewhere): just visit the elements.
+            for (ASTNode element : elements) {
+                if (element != null) element.accept(this);
+            }
+            return;
+        }
+
+        List<NodeFieldDeclaration> fields = def.getFields();
+        if (elements.size() > fields.size()) {
+            errorReporter.reportError(
+                    "Too many initializers for struct '" + structName + "': it has " + fields.size()
+                            + " fields, got " + elements.size() + ".",
+                    literal.getLine(), literal.getColumn());
+        }
+
+        for (int i = 0; i < elements.size(); i++) {
+            ASTNode element = elements.get(i);
+            if (element == null) continue;
+
+            if (i >= fields.size() || fields.get(i) == null) {
+                element.accept(this);
+                continue;
+            }
+            NodeFieldDeclaration field = fields.get(i);
+            String fieldType = field.isArray() ? field.getType() + "[]" : field.getType();
+            reportIfNotAssignable(fieldType, element);
+        }
+    }
+
+    private void reportIfNotAssignable(String targetType, ASTNode element) {
+        String actual = valueTypeFor(targetType, element);
+        if (actual != null && !isAssignable(targetType, actual)) {
+            errorReporter.reportError(
+                    "Cannot assign '" + actual + "' to '" + targetType + "'.",
+                    element.getLine(), element.getColumn());
+        }
+    }
+
     private void checkBooleanCondition(ASTNode condition, String context) {
         if (condition == null) return;
         String condType = condition.accept(this);
@@ -722,9 +786,10 @@ public class YTypeChecker implements Visitor<String> {
         }
     }
 
-    // ============================================================
-    // TYPE SYSTEM HELPERS
-    // ============================================================
+    private boolean isConcatenable(String type) {
+        return "cadena".equals(type) || "entero".equals(type) || "flotante".equals(type)
+                || "bool".equals(type) || "caracter".equals(type);
+    }
 
     private boolean isNumeric(String type) {
         return "entero".equals(type) || "flotante".equals(type);

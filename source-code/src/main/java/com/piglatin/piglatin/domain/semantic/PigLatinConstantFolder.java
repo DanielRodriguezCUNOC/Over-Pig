@@ -138,8 +138,8 @@ public class PigLatinConstantFolder implements Visitor<Object> {
 
     @Override
     public Object visitIdentifier(NodeIdentifier n) {
-        VariableSymbol symbol = (VariableSymbol) symbolTable.lookup(n.getId());
-        if (symbol != null) return symbol.getConstantValue();
+        //* Only variables carry constants; an array or any other symbol has none
+        if (symbolTable.lookup(n.getId()) instanceof VariableSymbol symbol) return symbol.getConstantValue();
         return null;
     }
 

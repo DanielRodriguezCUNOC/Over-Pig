@@ -2,6 +2,7 @@ package com.piglatin.piglatin.application.services;
 
 import com.piglatin.common.application.dto.CustomErrorDTO;
 import com.piglatin.piglatin.domain.ast.principal.NodeProgram;
+import com.piglatin.piglatin.domain.semantic.ImportedSymbols;
 import com.piglatin.piglatin.domain.semantic.PigLatinSymbolTableBuilder;
 import com.piglatin.piglatin.domain.semantic.PigLatinTypeChecker;
 import com.piglatin.piglatin.domain.symboltable.PigLatinSymbolTable;
@@ -11,7 +12,6 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
-import java.util.Map;
 
 @Getter
 @Setter
@@ -20,35 +20,32 @@ public class PigLatinSemanticAnalyzer {
     private PigLatinSymbolTable symbolTable;
     private PigLatinTypeTable typeTable;
 
+    /** Without imports: no external class, struct or function is visible. */
     public List<CustomErrorDTO> analyze (NodeProgram ast) {
-        return analyze(ast, Map.of());
+        return analyze(ast, ImportedSymbols.NONE);
     }
 
-    /**
-     * classInheritance: herencia de las clases Zetariano importadas,
-     * para aceptar asignaciones polimórficas
-     */
-    public List<CustomErrorDTO> analyze (NodeProgram ast, Map<String, String> classInheritance) {
+    public List<CustomErrorDTO> analyze (NodeProgram ast, ImportedSymbols imported) {
         if (ast == null) return List.of();
+        ImportedSymbols visible = imported != null ? imported : ImportedSymbols.NONE;
+
         symbolTable = new PigLatinSymbolTable();
         typeTable = new PigLatinTypeTable();
-        if (classInheritance != null) {
-            classInheritance.forEach(typeTable::registerInheritance);
-        }
+        visible.classNames().forEach(typeTable::registerType);
+        visible.structNames().forEach(typeTable::registerType);
+        visible.inheritance().forEach(typeTable::registerInheritance);
         SemanticErrorReporter errorReporter = new SemanticErrorReporter();
 
         //* Fisrt pass: symbol table, sequentiality, etc
-        PigLatinSymbolTableBuilder symbolTableBuilder = new PigLatinSymbolTableBuilder(typeTable, errorReporter);
+        PigLatinSymbolTableBuilder symbolTableBuilder =
+                new PigLatinSymbolTableBuilder(typeTable, errorReporter, visible);
         ast.accept(symbolTableBuilder);
 
-        /**
-         * Exctract the symbol table built
-         * this is necessary for that TypeChecker needs the symbolTable built
-         */
         symbolTable = symbolTableBuilder.getSymbolTable();
 
         //* Second pass: type checker, resole expressions
-        PigLatinTypeChecker typeChecker = new PigLatinTypeChecker(typeTable, errorReporter, symbolTable);
+        PigLatinTypeChecker typeChecker =
+                new PigLatinTypeChecker(typeTable, errorReporter, symbolTable, visible);
         ast.accept(typeChecker);
         return errorReporter.getErrors();
     }

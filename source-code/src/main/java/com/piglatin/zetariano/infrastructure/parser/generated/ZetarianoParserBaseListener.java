@@ -101,6 +101,30 @@ public class ZetarianoParserBaseListener implements ZetarianoParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterThisConstructorCall(ZetarianoParser.ThisConstructorCallContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitThisConstructorCall(ZetarianoParser.ThisConstructorCallContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSuperConstructorCall(ZetarianoParser.SuperConstructorCallContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSuperConstructorCall(ZetarianoParser.SuperConstructorCallContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterMethodDeclaration(ZetarianoParser.MethodDeclarationContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -864,6 +888,18 @@ public class ZetarianoParserBaseListener implements ZetarianoParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitThisPrimary(ZetarianoParser.ThisPrimaryContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSuperPrimary(ZetarianoParser.SuperPrimaryContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSuperPrimary(ZetarianoParser.SuperPrimaryContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
