@@ -138,6 +138,32 @@ public class ZetarianoSymbolTable {
         return null;
     }
 
+    /** Z-6: walk the hierarchy to find which class actually declares a field. */
+    public String findDeclaringClass(String startClass, String fieldName, ZetarianoTypeTable typeTable) {
+        String current = startClass;
+        Set<String> visited = new HashSet<>();
+        while (current != null && visited.add(current)) {
+            Map<String, Symbol> fields = classFields.get(current);
+            if (fields != null && fields.containsKey(fieldName)) return current;
+            if (typeTable != null) {
+                current = typeTable.getInheritanceMap().get(current);
+            } else {
+                break;
+            }
+        }
+        return null;
+    }
+
+    /** Z-2: exact override check — name + param types must match (return type excluded per spec). */
+    public boolean existsMethodWithSignature(String className, String methodName, List<String> paramTypes) {
+        Map<String, MethodSymbol> methods = classMethods.get(className);
+        if (methods == null) return false;
+        for (MethodSymbol m : methods.values()) {
+            if (m.getName().equals(methodName) && m.getParameterTypes().equals(paramTypes)) return true;
+        }
+        return false;
+    }
+
     public boolean hasAnyConstructor(String className) {
         Map<String, MethodSymbol> methods = classMethods.get(className);
         if (methods == null) return false;

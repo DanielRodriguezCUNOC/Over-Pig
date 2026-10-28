@@ -185,8 +185,21 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
         if (n == null) return null;
         List<NodeParameter> params = n.getParameters();
         String label = currentClass + "_init_" + (1 + params.size());
-        emitFunction(label, true, Type.VOID, params, n.getBody(), null);
+        Runnable delegation = (n.isThisCall() || n.isSuperCall()) ? () -> emitConstructorDelegation(n) : null;
+        emitFunction(label, true, Type.VOID, params, n.getBody(), delegation);
         return null;
+    }
+
+    private void emitConstructorDelegation(NodeConstructorDeclaration n) {
+        String targetClass = n.isThisCall() ? currentClass : vtables.superOf(currentClass);
+        List<NodeExpression> args = n.getConstructorArgs() != null ? n.getConstructorArgs() : List.of();
+        VtableLayout.MethodInfo target = targetClass == null ? null : vtables.constructor(targetClass, args.size());
+        if (target == null) {
+            if (args.isEmpty()) return; // super() implícito sin constructor declarado en el padre
+            throw new IllegalStateException("Constructor no resuelto: " + targetClass + "/" + args.size());
+        }
+        int[] counts = emitParams(loadThis(), args, target.paramTypes());
+        emitter.emitCallVoid(target.label(), counts[0], counts[1]);
     }
 
     @Override
@@ -753,7 +766,15 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
 
     @Override
     public String visitMethodCall(NodeMethodCall n) {
-        String className = n.getTarget() == null ? currentClass : classNameOf(n.getTarget());
+        boolean isSuperCall = n.getTarget() instanceof NodeSuper;
+        String className;
+        if (isSuperCall) {
+            className = vtables.superOf(currentClass); // Z-3
+        } else if (n.getTarget() == null) {
+            className = currentClass;
+        } else {
+            className = classNameOf(n.getTarget());
+        }
         List<NodeExpression> args = n.getArguments() != null ? n.getArguments() : List.of();
         VtableLayout.MethodInfo method = className == null
                 ? null : vtables.resolveMethod(className, n.getMethodName(), args.size());
@@ -763,13 +784,19 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
 
         String receiver = n.getTarget() == null ? loadThis() : n.getTarget().accept(this);
         int[] counts = emitParams(receiver, args, method.paramTypes());
-        return emitMethodCall(method, className, receiver, counts[0], counts[1]);
+        return emitMethodCall(method, className, receiver, counts[0], counts[1], isSuperCall);
     }
 
     private String emitMethodCall(VtableLayout.MethodInfo method, String className, String receiver,
                                   int nInt, int nDouble) {
+        return emitMethodCall(method, className, receiver, nInt, nDouble, false);
+    }
+
+    /** forceDirect: llamada directa (como invokespecial), usada por super.metodo() (Z-3). */
+    private String emitMethodCall(VtableLayout.MethodInfo method, String className, String receiver,
+                                  int nInt, int nDouble, boolean forceDirect) {
         Type returnType = TypeDesc.parse(method.returnType()).type();
-        int vtableOffset = method.isPrivate()
+        int vtableOffset = (method.isPrivate() || forceDirect)
                 ? -1 : vtables.vtableOffset(className, method.name(), method.paramTypes().size());
         boolean direct = vtableOffset < 0;
         String label = method.label();
@@ -1214,12 +1241,20 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
 
     /** Nombre de la clase cuando el tipo estático es OBJECT y no es un array; si no, null. */
     private String classNameOf(ASTNode node) {
+        if (node instanceof NodeSuper) {
+            // Z-3: super resuelve a la superclase para métodos/campos
+            return vtables.superOf(currentClass);
+        }
         TypeDesc desc = descOf(node);
         return desc.type() == Type.OBJECT && !desc.isArray() ? desc.name() : null;
     }
 
     private TypeDesc descOf(ASTNode node) {
         if (node instanceof NodeThis) return new TypeDesc(currentClass, 0);
+        if (node instanceof NodeSuper) { // Z-3: super → superclass TypeDesc
+            String superClass = vtables.superOf(currentClass);
+            return superClass != null ? new TypeDesc(superClass, 0) : TypeDesc.VOID;
+        }
         if (node instanceof NodeIdentifier id) return identifierDesc(id);
         if (node instanceof NodeFieldAccess access) return fieldAccessDesc(access);
         if (node instanceof NodeIndexAccess access) return descOf(access.getArrayTarget()).elementType();
