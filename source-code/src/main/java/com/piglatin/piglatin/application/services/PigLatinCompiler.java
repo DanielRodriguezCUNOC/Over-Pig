@@ -12,6 +12,7 @@ import com.piglatin.common.infrastructure.codegen.riscv.C3DToRiscVConverter;
 import com.piglatin.piglatin.application.dto.ParserResultDTO;
 import com.piglatin.piglatin.domain.ast.nodes.NodeImport;
 import com.piglatin.piglatin.domain.ast.principal.NodeProgram;
+import com.piglatin.piglatin.domain.semantic.ImportedSymbols;
 import com.piglatin.piglatin.domain.symboltable.PigLatinSymbolTable;
 import com.piglatin.piglatin.infrastructure.codegen.c3d.PigLatinC3DVisitor;
 import com.piglatin.y.domain.ast.visitor.YASTBuilder;
@@ -90,12 +91,23 @@ public class PigLatinCompiler implements CompilerUseCase {
                 siblings = loadSiblingClasses(
                         request.getProjectDirectory(),
                         request.getCurrentFileName(),
+                        request.getFileName(),
                         ast.getImports(),
                         zTypeTable, zSymbolTable);
             }
 
-            List<CustomErrorDTO> semanticErrors =
-                    semanticAnalyzer.analyze(ast, zTypeTable.getInheritanceMap());
+            if (!siblings.errors.isEmpty()) {
+                errors.addAll(siblings.errors);
+                errorReporter.reportAll(siblings.errors);
+                return buildResponse(false, errors, null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), startTime);
+            }
+
+            siblings.zLayout = new VtableLayout(zSymbolTable, zTypeTable);
+            ImportedSymbols imported = new SiblingImportedSymbols(
+                    siblings.zLayout, zTypeTable,
+                    siblings.ySymbolTable, siblings.yTypeTable, siblings.yStructLayout);
+
+            List<CustomErrorDTO> semanticErrors = semanticAnalyzer.analyze(ast, imported);
             List<CompilationErrorDTO> semErrors = convertSemanticErrors(semanticErrors, request);
             errors.addAll(semErrors);
 
@@ -103,9 +115,6 @@ public class PigLatinCompiler implements CompilerUseCase {
                 errorReporter.reportAll(semErrors);
                 return buildResponse(false, errors, null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), startTime);
             }
-
-            // Con todos los .z cargados se crea el layout de Zetariano.
-            siblings.zLayout = new VtableLayout(zSymbolTable, zTypeTable);
 
             // Extracción de datos de tablas
             List<SymbolInfoDTO> symbols = extractSymbols(zSymbolTable, siblings.ySymbolTable);
@@ -208,6 +217,7 @@ public class PigLatinCompiler implements CompilerUseCase {
     private Siblings loadSiblingClasses(
             String projectDirectory,
             String currentFileName,
+            String reportFileName,
             List<NodeImport> imports,
             ZetarianoTypeTable zTypeTable,
             ZetarianoSymbolTable zSymbolTable) {
@@ -223,7 +233,17 @@ public class PigLatinCompiler implements CompilerUseCase {
         if (imports != null) {
             for (NodeImport imp : imports) {
                 File f = resolveImportFile(dir, imp);
-                if (f != null && !f.getName().equals(currentFileName) && addIfNew(f, loaded)) {
+                if (f == null) {
+                    if (isFileImport(imp)) {
+                        result.errors.add(new CompilationErrorDTO(
+                                CompilationStage.SEMANTIC_ANALYSIS,
+                                "Cannot resolve import '" + String.join(".", imp.getPath())
+                                        + "': no such file in the project",
+                                imp.getLine(), imp.getColumn(), reportFileName));
+                    }
+                    continue;
+                }
+                if (!f.getName().equals(currentFileName) && addIfNew(f, loaded)) {
                     toLoad.add(f);
                 }
             }
@@ -242,27 +262,39 @@ public class PigLatinCompiler implements CompilerUseCase {
                 String code = Files.readString(file.toPath());
 
                 if (file.getName().endsWith(".z")) {
-                    loadZFile(code, currentFileName, zTypeTable, zSymbolTable, result);
+                    loadZFile(code, file.getName(), zTypeTable, zSymbolTable, result);
                 } else if (file.getName().endsWith(".y")) {
                     loadYFile(code, file.getName(), result);
                 }
             } catch (Exception e) {
-                System.err.println("[PigLatinCompiler/loadSiblingClasses] Skipping "
-                        + file.getName() + ": " + e.getClass().getSimpleName()
-                        + ": " + e.getMessage());
+                // Antes se descartaba con un println: ahora el archivo roto se reporta como error.
+                result.errors.add(new CompilationErrorDTO(
+                        CompilationStage.SEMANTIC_ANALYSIS,
+                        "Cannot analyze " + file.getName() + ": " + describe(e),
+                        1, 1, file.getName()));
             }
         }
         return result;
+    }
+
+    /** true si el import apunta a un archivo: ruta con al menos dos segmentos que termina en .z o .y */
+    private boolean isFileImport(NodeImport imp) {
+        if (imp == null || imp.getPath() == null || imp.getPath().size() < 2) return false;
+        String ext = imp.getPath().get(imp.getPath().size() - 1);
+        return "z".equals(ext) || "y".equals(ext);
+    }
+
+    private String describe(Exception e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     /**
      * Devuelve null si el import no tiene extensión .z/.y o el archivo no existe.
      */
     private File resolveImportFile(File baseDir, NodeImport imp) {
-        if (imp == null || imp.getPath() == null || imp.getPath().size() < 2) return null;
+        if (!isFileImport(imp)) return null;
         List<String> path = imp.getPath();
         String ext = path.get(path.size() - 1);
-        if (!"z".equals(ext) && !"y".equals(ext)) return null;
 
         File current = baseDir;
         for (int i = 0; i < path.size() - 2; i++) {
@@ -284,7 +316,7 @@ public class PigLatinCompiler implements CompilerUseCase {
      * Carga un hermano .z y corre la semántica de Zetariano con las tablas compartidas.
      * El VtableLayout se crea al terminar de cargar todos los .z
      */
-    private void loadZFile(String code, String currentFileName,
+    private void loadZFile(String code, String fileName,
                            ZetarianoTypeTable zTypeTable,
                            ZetarianoSymbolTable zSymbolTable,
                            Siblings result) {
@@ -295,6 +327,7 @@ public class PigLatinCompiler implements CompilerUseCase {
         com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoLexer lexer =
                 new com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoLexer(input);
         lexer.removeErrorListeners();
+        lexer.addErrorListener(new SiblingErrorListener(fileName, CompilationStage.LEXICAL_ANALYSIS, result.errors));
 
         org.antlr.v4.runtime.CommonTokenStream tokens =
                 new org.antlr.v4.runtime.CommonTokenStream(lexer);
@@ -302,8 +335,11 @@ public class PigLatinCompiler implements CompilerUseCase {
         com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoParser parser =
                 new com.piglatin.zetariano.infrastructure.parser.generated.ZetarianoParser(tokens);
         parser.removeErrorListeners();
+        parser.addErrorListener(new SiblingErrorListener(fileName, CompilationStage.SYNTACTIC_ANALYSIS, result.errors));
 
+        int errorsBefore = result.errors.size();
         org.antlr.v4.runtime.tree.ParseTree tree = parser.compilationUnit();
+        if (result.errors.size() > errorsBefore) return; // no se analiza un arbol roto
         ZetarianoASTBuilder builder =
                 new ZetarianoASTBuilder();
 
@@ -318,7 +354,7 @@ public class PigLatinCompiler implements CompilerUseCase {
         }
 
         ZetarianoSemanticAnalyzer zAnalyzer =
-                new ZetarianoSemanticAnalyzer(currentFileName);
+                new ZetarianoSemanticAnalyzer(fileName);
         zAnalyzer.analyze(program, zTypeTable, zSymbolTable);
 
         result.zPrograms.add(program);
@@ -332,6 +368,7 @@ public class PigLatinCompiler implements CompilerUseCase {
         com.piglatin.y.infrastructure.parser.generated.YLexer lexer =
                 new com.piglatin.y.infrastructure.parser.generated.YLexer(input);
         lexer.removeErrorListeners();
+        lexer.addErrorListener(new SiblingErrorListener(fileName, CompilationStage.LEXICAL_ANALYSIS, result.errors));
 
         org.antlr.v4.runtime.CommonTokenStream tokens =
                 new org.antlr.v4.runtime.CommonTokenStream(lexer);
@@ -339,8 +376,11 @@ public class PigLatinCompiler implements CompilerUseCase {
         com.piglatin.y.infrastructure.parser.generated.YParser parser =
                 new com.piglatin.y.infrastructure.parser.generated.YParser(tokens);
         parser.removeErrorListeners();
+        parser.addErrorListener(new SiblingErrorListener(fileName, CompilationStage.SYNTACTIC_ANALYSIS, result.errors));
 
+        int errorsBefore = result.errors.size();
         org.antlr.v4.runtime.tree.ParseTree tree = parser.program();
+        if (result.errors.size() > errorsBefore) return; // no se analiza un arbol roto
         YASTBuilder builder =
                 new YASTBuilder();
 
@@ -378,6 +418,26 @@ public class PigLatinCompiler implements CompilerUseCase {
             }
         }
         result.yPrograms.add(program);
+    }
+
+    /** Recoge los errores lexicos / sintacticos de un .z o .y con el nombre de su archivo. */
+    private static final class SiblingErrorListener extends org.antlr.v4.runtime.BaseErrorListener {
+        private final String fileName;
+        private final CompilationStage stage;
+        private final List<CompilationErrorDTO> sink;
+
+        SiblingErrorListener(String fileName, CompilationStage stage, List<CompilationErrorDTO> sink) {
+            this.fileName = fileName;
+            this.stage = stage;
+            this.sink = sink;
+        }
+
+        @Override
+        public void syntaxError(org.antlr.v4.runtime.Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                int line, int charPositionInLine, String msg,
+                                org.antlr.v4.runtime.RecognitionException e) {
+            sink.add(new CompilationErrorDTO(stage, msg, line, charPositionInLine, fileName));
+        }
     }
 
     private List<CompilationErrorDTO> convertParserErrors(
