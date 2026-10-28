@@ -37,7 +37,7 @@ public class ZetarianoTypeTable {
     private void preloadPrimitives() {
         primitiveTypes.add("int");
         primitiveTypes.add("double");
-        primitiveTypes.add("float");
+        // Z-8: float eliminated from the language (use double instead)
         primitiveTypes.add("char");
         primitiveTypes.add("boolean");
         primitiveTypes.add("String");

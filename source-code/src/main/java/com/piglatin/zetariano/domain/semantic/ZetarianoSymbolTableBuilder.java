@@ -18,6 +18,7 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
     private final ZetarianoTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
     private int loopDepth = 0;
+    private int switchDepth = 0; // Z-1: break is valid inside switch too
     private String currentClassName = null;
     private String currentMethodReturnType = null;
 
@@ -232,10 +233,12 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
         if (n == null) return null;
         if (n.getExpression() != null) n.getExpression().accept(this);
 
+        switchDepth++; // Z-1: break is valid inside switch
         for (NodeCase c : n.getCases()) {
             if (c != null) c.accept(this);
         }
         if (n.getDefaultBlock() != null) n.getDefaultBlock().accept(this);
+        switchDepth--;
         return null;
     }
 
@@ -290,9 +293,9 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
 
     @Override
     public Void visitBreak(NodeBreak n) {
-        if (loopDepth <= 0) {
+        if (loopDepth <= 0 && switchDepth <= 0) { // Z-1: allow break in switch
             errorReporter.reportError(
-                    "'break' can only be used inside a loop.",
+                    "'break' can only be used inside a loop or switch.",
                     n.getLine(), n.getColumn());
         }
         return null;
@@ -509,12 +512,12 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
         }
     }
 
-    /** Busca el método en la superclase y, si no está, en sus ancestros. */
-    private boolean existsInHierarchy(String className, String methodName) {
+    /** Z-2: search by name + param types (not just name) through the hierarchy. */
+    private boolean existsInHierarchy(String className, String methodName, List<String> paramTypes) {
         java.util.Set<String> visited = new java.util.HashSet<>();
         String current = className;
         while (current != null && visited.add(current)) {
-            if (symbolTable.existsMethod(current, methodName)) return true;
+            if (symbolTable.existsMethodWithSignature(current, methodName, paramTypes)) return true;
             current = typeTable.getInheritanceMap().get(current);
         }
         return false;
@@ -528,9 +531,9 @@ public class ZetarianoSymbolTableBuilder implements Visitor<Void> {
                 errorReporter.reportError(
                         "Method '" + m.getName() + "' is marked with @Override but the class '" + currentClassName + "' does not have a superclass.",
                         m.getLine(), m.getColumn());
-            } else if (!existsInHierarchy(superClass, m.getName())) {
+            } else if (!existsInHierarchy(superClass, m.getName(), buildParamTypes(m.getParameters()))) {
                 errorReporter.reportError(
-                        "Method '" + m.getName() + "' marked with @Override does not override any method in superclass '" + superClass + "'.",
+                        "Method '" + m.getName() + "' marked with @Override does not override any method in superclass '" + superClass + "' with the same signature.",
                         m.getLine(), m.getColumn());
             }
         }

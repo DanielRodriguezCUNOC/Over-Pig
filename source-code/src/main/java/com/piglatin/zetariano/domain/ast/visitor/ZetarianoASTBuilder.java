@@ -379,7 +379,7 @@ public class ZetarianoASTBuilder extends ZetarianoParserBaseVisitor<ASTNode> {
         String methodName = ctx.IDENTIFIER().getText();
         List<NodeExpression> args = parseExpressionList(ctx.expressionList());
 
-        if ("read".equals(methodName) && args.isEmpty()) {
+        if (("read".equals(methodName) || "readln".equals(methodName)) && args.isEmpty()) { // Z-5: accept readln()
             return new NodeRead(line, col);
         }
 

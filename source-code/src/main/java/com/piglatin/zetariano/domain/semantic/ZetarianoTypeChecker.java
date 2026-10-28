@@ -160,6 +160,8 @@ public class ZetarianoTypeChecker implements Visitor<String> {
             }
         }
 
+        validateConstructorDelegation(n);
+
         if (n.getBody() != null) {
             n.getBody().accept(this);
         }
@@ -167,6 +169,48 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         symbolTable.popScope();
         this.currentMethodReturnType = null;
         return null;
+    }
+
+    /** Z-7: valida this(...) / super(...) contra los constructores de la clase / superclase. */
+    private void validateConstructorDelegation(NodeConstructorDeclaration n) {
+        if (!n.isThisCall() && !n.isSuperCall()) return;
+
+        List<NodeExpression> args = n.getConstructorArgs() != null ? n.getConstructorArgs() : Collections.emptyList();
+        List<String> argTypes = new ArrayList<>();
+        for (NodeExpression arg : args) {
+            argTypes.add(arg != null ? arg.accept(this) : null);
+        }
+
+        String keyword = n.isThisCall() ? "this" : "super";
+        String targetClass = n.isThisCall()
+                ? currentClassName
+                : typeTable.getInheritanceMap().get(currentClassName);
+        if (targetClass == null) {
+            errorReporter.reportError("'super(...)' used in class '" + currentClassName
+                    + "' which has no superclass.", n);
+            return;
+        }
+
+        int arity = args.size();
+        MethodSymbol ctor = symbolTable.lookupMethod(targetClass, targetClass, arity);
+        if (ctor == null) {
+            if (n.isSuperCall() && arity == 0 && !symbolTable.hasAnyConstructor(targetClass)) {
+                return; // super() implícito válido
+            }
+            errorReporter.reportError("Constructor '" + targetClass + "' with " + arity
+                    + " arguments is not defined (called via " + keyword + "(...)).", n);
+            return;
+        }
+
+        List<String> paramTypes = ctor.getParameterTypes();
+        for (int i = 0; i < arity; i++) {
+            String expected = paramTypes.get(i);
+            String actual = argTypes.get(i);
+            if (expected != null && actual != null && !isAssignable(expected, actual)) {
+                errorReporter.reportError("Argument " + (i + 1) + " of " + keyword + "(...): cannot assign '"
+                        + actual + "' to '" + expected + "'.", args.get(i));
+            }
+        }
     }
 
     @Override
@@ -253,18 +297,34 @@ public class ZetarianoTypeChecker implements Visitor<String> {
             return "empty_array";
         }
 
-        String firstType = elements.get(0).accept(this);
-        for (int i = 1; i < elements.size(); i++) {
-            String elemType = elements.get(i).accept(this);
-            if (firstType != null && elemType != null && !isAssignable(firstType, elemType) && !isAssignable(elemType, firstType)) {
+        // Z-12: collect all types, then promote symmetrically (int/char → double if any double present)
+        List<String> elemTypes = new ArrayList<>();
+        for (NodeExpression elem : elements) {
+            elemTypes.add(elem != null ? elem.accept(this) : null);
+        }
+
+        // Determine promoted element type
+        String promotedType = elemTypes.get(0);
+        for (String et : elemTypes) {
+            if (et == null) continue;
+            if (promotedType == null) { promotedType = et; continue; }
+            if (("double".equals(et) || "float".equals(et)) && isNumeric(promotedType)) {
+                promotedType = "double";
+            }
+        }
+
+        // Validate each element is compatible with the promoted type
+        for (int i = 0; i < elements.size(); i++) {
+            String et = elemTypes.get(i);
+            if (promotedType != null && et != null && !isAssignable(promotedType, et)) {
                 errorReporter.reportError(
-                        "Incompatible types in array initializer: '" + firstType + "' and '" + elemType + "'.",
+                        "Incompatible types in array initializer: '" + promotedType + "' and '" + et + "'.",
                         elements.get(i));
             }
         }
 
-        if (firstType == null) return null;
-        return firstType + "[]";
+        if (promotedType == null) return null;
+        return promotedType + "[]";
     }
 
     @Override
@@ -658,8 +718,11 @@ public class ZetarianoTypeChecker implements Visitor<String> {
             return null;
         }
 
+        // Z-6: use the actual declaring class (not the static type of the receiver)
+        String declaringClass = symbolTable.findDeclaringClass(targetType, n.getFieldName(), typeTable);
+        if (declaringClass == null) declaringClass = targetType;
         //* Validate modifier of the field
-        checkAccess(fieldSym.getAccessModifier(), targetType, n, n.getFieldName());
+        checkAccess(fieldSym.getAccessModifier(), declaringClass, n, n.getFieldName());
 
         if (fieldSym instanceof VariableSymbol vs) {
             return vs.getType();
@@ -874,14 +937,17 @@ public class ZetarianoTypeChecker implements Visitor<String> {
         if (targetType == null || sourceType == null) return true;
         if (targetType.equals(sourceType)) return true;
 
+        // Z-4: strict rules — no implicit String↔anything or String→int conversions
         if ("double".equals(targetType) || "float".equals(targetType)) {
-            return "int".equals(sourceType) || "char".equals(sourceType) || "float".equals(sourceType) || "double".equals(sourceType) || "String".equals(sourceType);
+            return "int".equals(sourceType) || "char".equals(sourceType)
+                    || "float".equals(sourceType) || "double".equals(sourceType);
         }
         if ("int".equals(targetType)) {
-            return "char".equals(sourceType) || "String".equals(sourceType);
+            return "char".equals(sourceType); // Z-4: removed String→int
         }
+        // Z-4: String only accepts String or null
         if ("String".equals(targetType)) {
-            return true;
+            return "String".equals(sourceType) || "null".equals(sourceType);
         }
         if ("null".equals(sourceType)) {
             return isReferenceType(targetType);

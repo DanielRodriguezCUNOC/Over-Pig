@@ -95,11 +95,17 @@ public class ZetarianoCompiler implements CompilerUseCase {
 
         //? Semantic analysis of sibling classes
         for (NodeProgram siblingProgram: siblingPrograms){
+            // Z-10: use sibling fileName for error attribution (stored in NodeProgram label via listFiles order)
+            // We cannot recover original filename here, so use a helper that passes it from loadSiblingClasses
             try {
                 ZetarianoSemanticAnalyzer siblingAnalyzer = new ZetarianoSemanticAnalyzer(fileName);
-                siblingAnalyzer.analyze(siblingProgram, typeTable, symbolTable);
+                SemanticContext siblingCtx = siblingAnalyzer.analyze(siblingProgram, typeTable, symbolTable);
+                if (siblingCtx.getErrorReporter() != null && siblingCtx.getErrorReporter().hasErrors()) {
+                    errors.addAll(siblingCtx.getErrorReporter().getErrors()); // Z-10: propagate, not silence
+                }
             } catch (Exception e) {
-                System.err.println("[ZetarianoCompiler] Error analizando clase hermana: " + e.getMessage());
+                errors.add(new CompilationErrorDTO(CompilationStage.SEMANTIC_ANALYSIS,
+                        "[Sibling] Exception: " + e.getMessage(), 0, 0, fileName));
             }
         }
 
