@@ -23,7 +23,13 @@ structField
     ;
 
 functionDeclaration
-    : DEFINIR ID LEFT_PAREN parameterList? RIGHT_PAREN (ARROW type)? COLON block NEWLINE*
+    : DEFINIR ID LEFT_PAREN parameterList? RIGHT_PAREN (ARROW returnType)? COLON block NEWLINE*
+    ;
+
+returnType
+    : type
+    | LEFT_BRACKET RIGHT_BRACKET type
+    | LEFT_BRACE RIGHT_BRACE type
     ;
 
 parameterList
@@ -55,8 +61,10 @@ instruction
     | expression                                                      #InstructionExpression
     ;
 
+// entero x = 1   |   {} Punto p = {1, 2}
 variableDeclaration
     : type ID (ASSIGN expression)?
+    | LEFT_BRACE RIGHT_BRACE type ID (ASSIGN expression)?
     ;
 
 // entero a[5] = {..}   |   entero m[3][3]
@@ -127,15 +135,15 @@ expression
     | (NOT | MINUS) expression                                      #ExprUnary
     | expression (MULT | DIV) expression                            #ExprMultiplicative
     | expression (PLUS | MINUS) expression                          #ExprAdditive
-    | expression (LESS | GREATER | EQUAL | NOTEQUAL) expression     #ExprRelational
+    | expression (LESS | LESS_EQUAL | GREATER | GREATER_EQUAL | EQUAL | NOTEQUAL) expression #ExprRelational
     | expression AND expression                                     #ExprAnd
     | expression OR expression                                      #ExprOr
     ;
 
 primary
     : literal                                                       #PrimaryLiteral
-    | lvalue                                                        #PrimaryLvalue
     | ID LEFT_PAREN argumentList? RIGHT_PAREN                       #PrimaryFunctionCall
+    | lvalue                                                        #PrimaryLvalue
     | LEER LEFT_PAREN RIGHT_PAREN                                   #PrimaryRead
     | LEFT_PAREN expression RIGHT_PAREN                             #PrimaryParen
     ;

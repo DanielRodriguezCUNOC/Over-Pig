@@ -84,6 +84,30 @@ public interface ZetarianoParserListener extends ParseTreeListener {
 	 */
 	void exitConstructorDeclaration(ZetarianoParser.ConstructorDeclarationContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code ThisConstructorCall}
+	 * labeled alternative in {@link ZetarianoParser#explicitConstructorInvocation}.
+	 * @param ctx the parse tree
+	 */
+	void enterThisConstructorCall(ZetarianoParser.ThisConstructorCallContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ThisConstructorCall}
+	 * labeled alternative in {@link ZetarianoParser#explicitConstructorInvocation}.
+	 * @param ctx the parse tree
+	 */
+	void exitThisConstructorCall(ZetarianoParser.ThisConstructorCallContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code SuperConstructorCall}
+	 * labeled alternative in {@link ZetarianoParser#explicitConstructorInvocation}.
+	 * @param ctx the parse tree
+	 */
+	void enterSuperConstructorCall(ZetarianoParser.SuperConstructorCallContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code SuperConstructorCall}
+	 * labeled alternative in {@link ZetarianoParser#explicitConstructorInvocation}.
+	 * @param ctx the parse tree
+	 */
+	void exitSuperConstructorCall(ZetarianoParser.SuperConstructorCallContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link ZetarianoParser#methodDeclaration}.
 	 * @param ctx the parse tree
 	 */
@@ -785,6 +809,18 @@ public interface ZetarianoParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitThisPrimary(ZetarianoParser.ThisPrimaryContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code SuperPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 */
+	void enterSuperPrimary(ZetarianoParser.SuperPrimaryContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code SuperPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 */
+	void exitSuperPrimary(ZetarianoParser.SuperPrimaryContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code MethodCallSuffix}
 	 * labeled alternative in {@link ZetarianoParser#primarySuffix}.

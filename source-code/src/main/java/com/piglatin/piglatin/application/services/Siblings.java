@@ -1,5 +1,6 @@
 package com.piglatin.piglatin.application.services;
 
+import com.piglatin.common.application.dto.CompilationErrorDTO;
 import com.piglatin.y.domain.symboltable.YSymbolTable;
 import com.piglatin.y.domain.types.YTypeTable;
 import com.piglatin.zetariano.domain.ast.principal.NodeProgram;
@@ -16,6 +17,8 @@ public class Siblings {
     List<com.piglatin.y.domain.ast.principal.NodeProgram> yPrograms = new ArrayList<>();
 
     VtableLayout zLayout;
+
+    List<CompilationErrorDTO> errors = new ArrayList<>();
 
     YSymbolTable ySymbolTable =
             new YSymbolTable();

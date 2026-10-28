@@ -37,6 +37,7 @@ public class ZetarianoTypeTable {
     private void preloadPrimitives() {
         primitiveTypes.add("int");
         primitiveTypes.add("double");
+        primitiveTypes.add("float");
         primitiveTypes.add("char");
         primitiveTypes.add("boolean");
         primitiveTypes.add("String");
@@ -104,7 +105,7 @@ public class ZetarianoTypeTable {
     }
 
     public boolean isNumeric(String typeName) {
-        return "int".equals(typeName) || "double".equals(typeName) || "char".equals(typeName);
+        return "int".equals(typeName) || "double".equals(typeName) || "float".equals(typeName) || "char".equals(typeName);
     }
 
     public boolean isBoolean(String typeName) {

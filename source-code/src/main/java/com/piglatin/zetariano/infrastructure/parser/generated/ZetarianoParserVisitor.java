@@ -56,6 +56,20 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitConstructorDeclaration(ZetarianoParser.ConstructorDeclarationContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code ThisConstructorCall}
+	 * labeled alternative in {@link ZetarianoParser#explicitConstructorInvocation}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitThisConstructorCall(ZetarianoParser.ThisConstructorCallContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code SuperConstructorCall}
+	 * labeled alternative in {@link ZetarianoParser#explicitConstructorInvocation}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSuperConstructorCall(ZetarianoParser.SuperConstructorCallContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link ZetarianoParser#methodDeclaration}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -470,6 +484,13 @@ public interface ZetarianoParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitThisPrimary(ZetarianoParser.ThisPrimaryContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code SuperPrimary}
+	 * labeled alternative in {@link ZetarianoParser#primaryCore}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSuperPrimary(ZetarianoParser.SuperPrimaryContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code MethodCallSuffix}
 	 * labeled alternative in {@link ZetarianoParser#primarySuffix}.

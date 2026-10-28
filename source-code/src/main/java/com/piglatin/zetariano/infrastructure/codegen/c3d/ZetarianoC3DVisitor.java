@@ -744,6 +744,11 @@ public class ZetarianoC3DVisitor implements Visitor<String> {
         return loadThis();
     }
 
+    @Override
+    public String visitSuper(NodeSuper n) {
+        return loadThis();
+    }
+
     // Llamadas y objetos
 
     @Override

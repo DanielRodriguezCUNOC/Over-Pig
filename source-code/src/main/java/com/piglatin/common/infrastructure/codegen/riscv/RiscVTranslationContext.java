@@ -9,8 +9,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Estado y operaciones de emisión de ensamblador RISC-V (RV32I+M+F+D, RARS) compartidos por
- * quien coordina las pasadas de traducción (el conversor C3D a RISC-V) y por Translator
+ * Estado y operaciones de emisión de ensamblador RISC-V
  *
  * Modelo:
  *
@@ -33,12 +32,19 @@ public final class RiscVTranslationContext {
     /** Etiqueta del punto de entrada del programa. */
     static final String MAIN = "main";
 
-    // Registros scratch
+    //* Registros scratch
     static final String S0 = "x5";
     static final String S1 = "x6";
     static final String S2 = "x7";
     static final String F0 = "f0";
     static final String F1 = "f1";
+
+    /** Heap pointer: próximo byte libre del bloque estático */
+    static final String HEAP_PTR = "s11";
+    /** Fin del bloque estático para el bounds check. */
+    static final String HEAP_END = "s10";
+    /** Rutina de runtime.asm que imprime "Out of memory" y sale con código 10. */
+    static final String OOM_LABEL = "__oom_error";
 
     private static final int SLOT = 8;
     private static final int FRAME_ALIGN = 16;
@@ -50,6 +56,10 @@ public final class RiscVTranslationContext {
 
     //* Por conversión: pool de constantes double (bits -> label)
     private final Map<Long, String> doublePool = new LinkedHashMap<>();
+
+    //* Por conversión: contador de etiquetas de bounds check. No se reinicia entre funciones ni
+    //* pasadas, así que las etiquetas __heap_ok_N son únicas en todo el archivo.
+    private int heapCheckCounter;
 
     // Por función
     private final Map<String, Integer> slots = new LinkedHashMap<>();
@@ -66,7 +76,7 @@ public final class RiscVTranslationContext {
     private boolean retPreloaded;
 
 
-    // Ciclo de vida: función y pasadas (usado por el conversor)
+    // Ciclo de vida: función y pasadas
 
 
     /**
@@ -203,6 +213,41 @@ public final class RiscVTranslationContext {
             line("add " + S2 + ", " + S2 + ", " + base);
             line(op + " " + reg + ", 0(" + S2 + ")");
         }
+    }
+
+    /**
+     * Bump allocator inline sobre el bloque estático. Sin syscalls.
+     *
+     * resultTemp = dirección alineada a 8 del bloque reservado; sizeOp = bytes pedidos (temporal o
+     * registro). Usa solo los scratch S0 (tamaño) y S1 (restante / resultado), más s10/s11.
+     *
+     *   s11 = (s11 + 7) & -8                 heap pointer alineado a 8
+     *   S0  = size
+     *   S1  = s10 - s11                      bytes libres
+     *   if (S0 <= S1 sin signo) sigue       si no: j __oom_error
+     *   S0  = (S0 + 7) & -8                  tamaño alineado a 8
+     *   S1  = s11 ; s11 += S0
+     *   resultTemp = S1
+     *
+     * El chequeo se hace contra el tamaño sin alinear y restando, no sumando a s11: así un tamaño
+     * negativo o enorme no desborda 32 bits y pasa el chequeo. Como s10 - s11 es múltiplo de 8,
+     * si size <= libres entonces alinear(size) <= libres. El "j" al error evita el alcance limitado
+     * (+-4 KB) de un branch hacia runtime.asm, que está al final del archivo.
+     */
+    void bumpAllocate(String resultTemp, String sizeOp) {
+        String ok = "__heap_ok_" + (heapCheckCounter++);
+        line("addi " + HEAP_PTR + ", " + HEAP_PTR + ", 7");
+        line("andi " + HEAP_PTR + ", " + HEAP_PTR + ", -8");
+        loadInt(S0, sizeOp);
+        line("sub " + S1 + ", " + HEAP_END + ", " + HEAP_PTR);
+        line("bleu " + S0 + ", " + S1 + ", " + ok);
+        line("j " + OOM_LABEL);
+        label(ok);
+        line("addi " + S0 + ", " + S0 + ", 7");
+        line("andi " + S0 + ", " + S0 + ", -8");
+        line("mv " + S1 + ", " + HEAP_PTR);
+        line("add " + HEAP_PTR + ", " + HEAP_PTR + ", " + S0);
+        si(resultTemp, S1);
     }
 
     void syscall(int number) {

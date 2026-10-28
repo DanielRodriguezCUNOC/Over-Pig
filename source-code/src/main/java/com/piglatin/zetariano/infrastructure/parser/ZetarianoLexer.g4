@@ -7,6 +7,7 @@ PROTECTED    : 'protected' ;
 EXTENDS      : 'extends' ;
 OVERRIDE     : '@Override' ;
 THIS         : 'this' ;
+SUPER        : 'super' ;
 RETURN       : 'return' ;
 IF           : 'if' ;
 ELSE         : 'else' ;
@@ -22,6 +23,7 @@ NEW          : 'new' ;
 NULL         : 'null' ;
 
 INT          : 'int' ;
+FLOAT        : 'float' ;
 CHAR         : 'char' ;
 BOOLEAN      : 'boolean' ;
 STRING       : 'String' ;

@@ -37,6 +37,8 @@ public class YSymbolTableBuilder implements Visitor<Void> {
     private final YTypeTable typeTable;
     private final SemanticErrorReporter errorReporter;
     private int loopDepth = 0;
+    //* 'romper' tambien es valido dentro de 'elegir'; 'continuar' solo dentro de un ciclo.
+    private int chooseDepth = 0;
     private String currentFunctionReturnType = null;
 
     public YSymbolTableBuilder(YTypeTable typeTable, SemanticErrorReporter errorReporter) {
@@ -248,8 +250,7 @@ public class YSymbolTableBuilder implements Visitor<Void> {
         if (n == null) return null;
         if (n.getExpression() != null) n.getExpression().accept(this);
 
-        //* 'elegir' does not open an extra scope per case; each case's
-        //* block already opens its own via visitBlock().
+        chooseDepth++;
         if (n.getCases() != null) {
             for (NodeChooseCase c : n.getCases()) {
                 if (c != null) c.accept(this);
@@ -259,6 +260,7 @@ public class YSymbolTableBuilder implements Visitor<Void> {
         if (n.getDefaultCase() != null) {
             n.getDefaultCase().accept(this);
         }
+        chooseDepth--;
         return null;
     }
 
@@ -317,9 +319,9 @@ public class YSymbolTableBuilder implements Visitor<Void> {
 
     @Override
     public Void visitBreak(NodeBreak n) {
-        if (loopDepth <= 0) {
+        if (loopDepth <= 0 && chooseDepth <= 0) {
             errorReporter.reportError(
-                    "'break' can only be used inside a loop.",
+                    "'break' can only be used inside a loop or a 'elegir' statement.",
                     n.getLine(), n.getColumn());
         }
         return null;
@@ -504,6 +506,13 @@ public class YSymbolTableBuilder implements Visitor<Void> {
                         "Type '" + field.getType() + "' is not defined.",
                         field.getLine(), field.getColumn());
                 continue;
+            }
+
+            //* Inside 'estructura' the size must be a constant and positive.
+            if (field.isArray() && field.getArraySize() <= 0) {
+                errorReporter.reportError(
+                        "Array size must be a positive integer.",
+                        field.getLine(), field.getColumn());
             }
 
             if (!field.isArray() && field.getType().equals(n.getName())) {

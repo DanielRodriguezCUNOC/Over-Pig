@@ -49,6 +49,12 @@ public interface YParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFunctionDeclaration(YParser.FunctionDeclarationContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link YParser#returnType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitReturnType(YParser.ReturnTypeContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link YParser#parameterList}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -330,19 +336,19 @@ public interface YParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPrimaryLiteral(YParser.PrimaryLiteralContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code PrimaryLvalue}
-	 * labeled alternative in {@link YParser#primary}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPrimaryLvalue(YParser.PrimaryLvalueContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code PrimaryFunctionCall}
 	 * labeled alternative in {@link YParser#primary}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitPrimaryFunctionCall(YParser.PrimaryFunctionCallContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code PrimaryLvalue}
+	 * labeled alternative in {@link YParser#primary}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPrimaryLvalue(YParser.PrimaryLvalueContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code PrimaryRead}
 	 * labeled alternative in {@link YParser#primary}.

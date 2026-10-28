@@ -133,6 +133,35 @@ public class PigLatinASTBuilder extends LatinParserBaseVisitor<ASTNode> {
                 ctx.getStart().getCharPositionInLine());
     }
 
+    //* esto x: novus Clase(...)   -> the type is the class that is instantiated
+    @Override
+    public ASTNode visitDeclNewInstance(LatinParser.DeclNewInstanceContext ctx) {
+        String id = ctx.ID().getText();
+        ASTNode initializer = visit(ctx.newInstance());
+        String type = initializer instanceof NodeNewInstance created ? created.getClassName() : null;
+
+        return new NodeVariableDeclaration(
+                id,
+                type,
+                initializer,
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
+    }
+
+    //* esto flag: verum
+    @Override
+    public ASTNode visitDeclBoolean(LatinParser.DeclBooleanContext ctx) {
+        String id = ctx.ID().getText();
+        ASTNode initializer = visit(ctx.booleanLiteral());
+
+        return new NodeVariableDeclaration(
+                id,
+                "BOOL",
+                initializer,
+                ctx.getStart().getLine(),
+                ctx.getStart().getCharPositionInLine());
+    }
+
     @Override
     public ASTNode visitArrayDeclaration(LatinParser.ArrayDeclarationContext ctx) {
         String id = ctx.ID().getText();
