@@ -551,13 +551,11 @@ public class YTypeChecker implements Visitor<String> {
         if (n == null) return null;
 
         List<ASTNode> args = n.getArguments() != null ? n.getArguments() : Collections.emptyList();
-        List<String> argTypes = new ArrayList<>();
-        for (ASTNode arg : args) {
-            argTypes.add(arg != null ? arg.accept(this) : null);
-        }
-
         int arity = args.size();
         FunctionSymbol function = symbolTable.lookupFunction(n.getFunctionName(), arity);
+
+        List<String> argTypes = evaluateArgs(args, function != null ? function.getParameterTypes() : null);
+
         if (function == null) {
             if (symbolTable.existsFunction(n.getFunctionName())) {
                 errorReporter.reportError(
@@ -570,7 +568,8 @@ public class YTypeChecker implements Visitor<String> {
             return null;
         }
 
-        List<ParameterType> paramTypes = function.getParameterTypes();
+        List<ParameterType> paramTypes = function.getParameterTypes() != null
+                ? function.getParameterTypes() : Collections.emptyList();
 
         if (paramTypes.size() != arity) {
             errorReporter.reportError(
@@ -579,9 +578,7 @@ public class YTypeChecker implements Visitor<String> {
             return function.getReturnType();
         }
 
-        int paramCount = paramTypes.size();
-        int loopCount = Math.min(arity, paramCount);
-
+        int loopCount = Math.min(arity, paramTypes.size());
         for (int i = 0; i < loopCount; i++) {
             ParameterType expected = paramTypes.get(i);
             String actual = argTypes.get(i);
@@ -599,6 +596,29 @@ public class YTypeChecker implements Visitor<String> {
         return function.getReturnType();
     }
 
+    private List<String> evaluateArgs(List<ASTNode> args, List<ParameterType> paramTypes) {
+        if (args == null) return Collections.emptyList();
+
+        List<String> types = new ArrayList<>();
+        for (int i = 0; i < args.size(); i++) {
+            ASTNode arg = args.get(i);
+            if (arg == null) {
+                types.add(null);
+                continue;
+            }
+            if (paramTypes != null && i < paramTypes.size()) {
+                ParameterType param = paramTypes.get(i);
+                String expectedType = param != null
+                        ? param.getType() + (param.isArray() ? "[]" : "")
+                        : null;
+                types.add(expectedType != null ? valueTypeFor(expectedType, arg) : arg.accept(this));
+            } else {
+                types.add(arg.accept(this));
+            }
+        }
+        return types;
+    }
+
     @Override
     public String visitArrayLiteral(NodeArrayLiteral n) {
         if (n == null) return null;
@@ -608,19 +628,24 @@ public class YTypeChecker implements Visitor<String> {
             return "empty_array";
         }
 
-        String firstType = elements.get(0) != null ? elements.get(0).accept(this) : null;
+        String inferredType = elements.get(0) != null ? elements.get(0).accept(this) : null;
         for (int i = 1; i < elements.size(); i++) {
             ASTNode element = elements.get(i);
             String elemType = element != null ? element.accept(this) : null;
-            if (firstType != null && elemType != null
-                    && !isAssignable(firstType, elemType) && !isAssignable(elemType, firstType)) {
-                errorReporter.reportError(
-                        "Incompatible types in array literal: '" + firstType + "' and '" + elemType + "'.",
-                        element.getLine(), element.getColumn());
+            if (inferredType != null && elemType != null) {
+                if (!isAssignable(inferredType, elemType) && !isAssignable(elemType, inferredType)) {
+                    errorReporter.reportError(
+                            "Incompatible types in array literal: '" + inferredType + "' and '" + elemType + "'.",
+                            element.getLine(), element.getColumn());
+                } else if ("entero".equals(inferredType) && "flotante".equals(elemType)) {
+                    inferredType = "flotante";
+                }
+            } else if (inferredType == null && elemType != null) {
+                inferredType = elemType;
             }
         }
 
-        return firstType != null ? firstType + "[]" : null;
+        return inferredType != null ? inferredType + "[]" : null;
     }
 
 
@@ -630,15 +655,6 @@ public class YTypeChecker implements Visitor<String> {
     @Override public String visitStringLiteral(NodeStringLiteral n)   { return "cadena"; }
     @Override public String visitBooleanLiteral(NodeBooleanLiteral n) { return "bool"; }
 
-
-    /**
-     * Populates the persistent struct-field registry so that field access
-     * (p1.promedio) can later be resolved by struct name + field name.
-     * Duplicate names / undefined types were already reported in pass 1;
-     * here every field is registered best-effort regardless, so a single
-     * earlier mistake does not cascade into spurious "field not declared"
-     * errors for the rest of the program.
-     */
     private void registerStructureFields(NodeStructureDefinition n) {
         structDefs.put(n.getName(), n);
         if (n.getFields() == null) return;
@@ -803,7 +819,6 @@ public class YTypeChecker implements Visitor<String> {
         if (targetType == null || sourceType == null) return true;
         if (targetType.equals(sourceType)) return true;
 
-        //* Implicit widening: entero -> flotante.
         if ("flotante".equals(targetType) && "entero".equals(sourceType)) {
             return true;
         }

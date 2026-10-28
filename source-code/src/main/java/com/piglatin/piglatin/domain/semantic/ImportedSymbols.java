@@ -39,6 +39,12 @@ public interface ImportedSymbols {
     /** Tipo del campo de una clase de Zetariano. */
     String fieldType(String className, String fieldName);
 
+    record Field(String name, String type, boolean isArray) {
+    }
+
+    /** Lista de campos de un struct en orden de declaracion; null o vacio si no existe. */
+    List<Field> structFields(String structName);
+
     record Signature(String name, List<String> paramTypes, String returnType) {
     }
     ImportedSymbols NONE = new ImportedSymbols() {
@@ -49,5 +55,6 @@ public interface ImportedSymbols {
         @Override public Signature resolveConstructor(String c, int a) { return null; }
         @Override public Signature resolveFunction(String n, int a) { return null; }
         @Override public String fieldType(String c, String f) { return null; }
+        @Override public List<Field> structFields(String s) { return List.of(); }
     };
 }

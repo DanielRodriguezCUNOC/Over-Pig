@@ -76,4 +76,11 @@ public class YTypeTable {
     public Set<String> getUserDefinedTypesView() {
         return Collections.unmodifiableSet(userDefinedTypes);
     }
+
+    public void mergeFrom(YTypeTable other) {
+        if (other == null) return;
+        if (other.userDefinedTypes != null) {
+            this.userDefinedTypes.addAll(other.userDefinedTypes);
+        }
+    }
 }
